@@ -84,7 +84,7 @@ async function readRows(fileName: string, bytes: Buffer): Promise<string[][]> {
   if (extension !== "xlsx") throw new Error("Please upload a .csv or .xlsx file. Older .xls files are not supported; save them as .xlsx first.");
 
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(bytes);
+  await workbook.xlsx.load(bytes as unknown as Parameters<typeof workbook.xlsx.load>[0]);
   const sheet = workbook.worksheets[0];
   if (!sheet) throw new Error("The Excel workbook has no worksheet to import.");
   const rows: string[][] = [];

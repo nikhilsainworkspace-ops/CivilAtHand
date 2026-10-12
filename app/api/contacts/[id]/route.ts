@@ -15,7 +15,7 @@ export async function PUT(request: Request, context: Context) {
   try {
     const payload = await request.json() as Record<string, unknown>;
     await dbConnect();
-    const existing = await Contact.findById(id).lean();
+    const existing = await Contact.findById(id).lean() as { source?: string; linkId?: string } | null;
     if (!existing) return NextResponse.json({ error: "Record not found." }, { status: 404 });
     const normalized = normalizeContactInput(payload);
     // Editing a record must not erase how it entered the system.

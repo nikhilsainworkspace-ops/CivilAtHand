@@ -14,8 +14,8 @@ export async function GET(_request: Request, context: Context) {
   if (!/^[a-f0-9]{48}$/.test(token)) return NextResponse.json({ error: "This form link is invalid or no longer available." }, { status: 404 });
   try {
     await dbConnect();
-    const link = await ShareLink.findOne({ token, active: true }).lean();
-    if (!link || (link.expiresAt && new Date(link.expiresAt).getTime() < Date.now())) {
+    const link = await ShareLink.findOne({ token, active: true }).lean() as { expiresAt?: Date | null; category: string; title: string; _id: unknown } | null;
+    if (!link || (link.expiresAt && link.expiresAt.getTime() < Date.now())) {
       return NextResponse.json({ error: "This form link is closed or has expired. Please ask the person who shared it for a new link." }, { status: 404 });
     }
     const category = getCategory(link.category);
@@ -39,7 +39,7 @@ export async function POST(request: Request, context: Context) {
     if (typeof body.website === "string" && body.website.trim()) return NextResponse.json({ ok: true });
     await dbConnect();
     const link = await ShareLink.findOne({ token, active: true });
-    if (!link || (link.expiresAt && new Date(link.expiresAt).getTime() < Date.now())) {
+    if (!link || (link.expiresAt && link.expiresAt.getTime() < Date.now())) {
       return NextResponse.json({ error: "This form link is closed or has expired." }, { status: 404 });
     }
     const normalized = normalizeContactInput({ category: link.category, details: body.details, source: "public-link", linkId: String(link._id), status: "new" });
