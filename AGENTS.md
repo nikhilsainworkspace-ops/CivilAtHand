@@ -21,14 +21,14 @@ Do not add unrelated consumer/social-media features. Keep the product simple for
 - Every admin API route must call `isAdmin()` before reading or changing private records.
 - Public registration is permitted only through `/join/[token]`, where the unguessable token maps to an active `ShareLink`. Public users must never be able to list/search records, see the admin panel, or see another form's submissions.
 - A link can be paused, expired, or revoked. Keep that behaviour intact.
-- Brand name, tagline, canonical URL, colour, logo and favicon are controlled by environment variables. Do not hardcode the business name into UI logic in a way that blocks rebranding.
+- Brand name, tagline, canonical URL, colour, logo and favicon are configurable by environment variables. The included default logo pack lives in `public/`; keep local defaults working when optional environment variables are blank.
 - This project is designed as a personal single-admin app, not a multi-tenant/SaaS product.
 
 ## Where to extend it
 - Add a civil-work contact type and its bilingual fields in `lib/categories.ts`. The dashboard form editor, link generator and export builder consume this schema.
-- Contact-specific answers live in `Contact.details`; preserve them during editing and include them in Excel/CSV export.
+- Contact-specific answers live in `Contact.details`; preserve them during editing and include them in Excel/CSV export. Preserve the admin-only CSV/XLSX import flow in `app/api/import/route.ts` and keep the CSV/XLSX exporter filter-aware without changing full-export defaults: validate each row, cap file size/row count, and skip duplicates by phone/email.
 - Add any new server endpoint under `app/api` and protect admin routes with `isAdmin()`.
-- Keep the dashboard and public forms responsive at both small phone widths and desktop widths. Avoid breaking unrelated sections when fixing a component.
+- Keep the dashboard and public forms responsive at both small phone widths and desktop widths. Preserve the lightweight installable-app manifest and never add offline caching of private contact data. Avoid breaking unrelated sections when fixing a component.
 - For database changes, update the corresponding Mongoose model under `models/` and validate all untrusted input server-side.
 
 ## Before finishing a change

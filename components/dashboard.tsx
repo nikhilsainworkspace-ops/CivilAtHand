@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type CSSProperties, type ReactNode } from "react";
 import { categories, contactStatuses, getFields, categoryLabel, type FormField } from "@/lib/categories";
 
 type ContactRecord = {
@@ -18,7 +18,7 @@ type Tab = "overview" | "contacts" | "links" | "settings";
 
 const brandName = process.env.NEXT_PUBLIC_APP_NAME?.trim() || "Civil At Hand";
 const brandTagline = process.env.NEXT_PUBLIC_APP_TAGLINE?.trim() || "Your civil works network, organised.";
-const brandLogo = process.env.NEXT_PUBLIC_BRAND_LOGO_URL?.trim() || "";
+const brandLogo = process.env.NEXT_PUBLIC_BRAND_LOGO_URL?.trim() || "/civil-at-hand-logo.png";
 const rawBrandColor = process.env.NEXT_PUBLIC_BRAND_COLOR || "";
 const brandColor = /^#[0-9a-fA-F]{6}$/.test(rawBrandColor) ? rawBrandColor : "#176b59";
 
@@ -38,7 +38,7 @@ function relativeDate(value?: string) { if (!value) return "No date"; const date
 function statusLabel(status: string) { return contactStatuses.find((item) => item.value === status)?.label || status; }
 function StatusPill({ status }: { status: string }) { return <span className={`status-pill status-${status}`}>{statusLabel(status)}</span>; }
 function BrandMark({ large = false }: { large?: boolean }) { return brandLogo ? <img className={large ? "brand-logo-large" : "brand-logo"} src={brandLogo} alt={`${brandName} logo`} /> : <span className={`brand-mark ${large ? "large-mark" : ""}`} aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M4 25h24M7 25V13l9-7 9 7v12M12 25v-8h8v8" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"/><path d="M11 13h2m6 0h2" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"/></svg></span>; }
-function Icon({ name }: { name: "overview" | "contacts" | "links" | "settings" | "search" | "plus" | "download" | "external" | "edit" | "trash" | "copy" | "check" | "lock" | "logout" | "database" | "users" | "calendar" | "arrow" | "filter" | "share" | "mail" }) {
+function Icon({ name }: { name: "overview" | "contacts" | "links" | "settings" | "search" | "plus" | "download" | "external" | "edit" | "trash" | "copy" | "check" | "lock" | "logout" | "database" | "users" | "calendar" | "arrow" | "filter" | "share" | "mail" | "upload" }) {
   const paths: Record<string, ReactNode> = {
     overview: <><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></>,
     contacts: <><path d="M16 20c0-3-2.5-5-6-5s-6 2-6 5v1h12z"/><circle cx="10" cy="8" r="4"/><path d="M16 4.5a4 4 0 0 1 0 7.5M18 15c2.8.4 4 2.1 4 4.3V21h-4"/></>,
@@ -46,7 +46,7 @@ function Icon({ name }: { name: "overview" | "contacts" | "links" | "settings" |
     settings: <><circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.6a8 8 0 0 1-1.8 1l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.8-1l-1.7.6-1.4-2.4 1.4-1.1a7 7 0 0 1 0-2L5.7 12l1.4-2.4 1.7.6a8 8 0 0 1 1.8-1l.3-1.8h2.8l.3 1.8a8 8 0 0 1 1.8 1l1.7-.6 1.4 2.4-1.4 1.1a7 7 0 0 1-.1 1.9z" transform="translate(-1 -1) scale(1.08)"/></>,
     search: <><circle cx="10.8" cy="10.8" r="6.3"/><path d="m16 16 4.5 4.5"/></>,
     plus: <><path d="M12 5v14M5 12h14"/></>, download: <><path d="M12 3v12m-5-5 5 5 5-5"/><path d="M4 17v4h16v-4"/></>, external: <><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></>,
-    edit: <><path d="m14 5 5 5M4 20l4.2-.8L19 8.4a2.1 2.1 0 0 0-3-3L5.2 16.2 4 20z"/></>, trash: <><path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"/></>, copy: <><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></>, check: <path d="m5 12 4 4L19 6"/>, lock: <><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 1 1 8 0v3"/></>, logout: <><path d="M10 17l5-5-5-5M15 12H3"/><path d="M12 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6"/></>, database: <><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></>, users: <><circle cx="9" cy="8" r="3.5"/><path d="M2 20v-1a7 7 0 0 1 14 0v1M16 5.5a3.5 3.5 0 0 1 0 6.8M18 15a5.2 5.2 0 0 1 4 5"/></>, calendar: <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></>, arrow: <><path d="M5 12h14M13 6l6 6-6 6"/></>, filter: <><path d="M3 5h18M6 12h12M10 19h4"/></>, share: <><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/></>, mail: <><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></>,
+    edit: <><path d="m14 5 5 5M4 20l4.2-.8L19 8.4a2.1 2.1 0 0 0-3-3L5.2 16.2 4 20z"/></>, trash: <><path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"/></>, copy: <><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></>, check: <path d="m5 12 4 4L19 6"/>, lock: <><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 1 1 8 0v3"/></>, logout: <><path d="M10 17l5-5-5-5M15 12H3"/><path d="M12 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6"/></>, database: <><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></>, users: <><circle cx="9" cy="8" r="3.5"/><path d="M2 20v-1a7 7 0 0 1 14 0v1M16 5.5a3.5 3.5 0 0 1 0 6.8M18 15a5.2 5.2 0 0 1 4 5"/></>, calendar: <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></>, arrow: <><path d="M5 12h14M13 6l6 6-6 6"/></>, filter: <><path d="M3 5h18M6 12h12M10 19h4"/></>, share: <><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/></>, mail: <><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></>, upload: <><path d="M12 16V4m-5 5 5-5 5 5"/><path d="M4 16v4h16v-4"/></>,
   };
   return <svg className="icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 }
@@ -110,6 +110,8 @@ export default function Dashboard() {
   const [links, setLinks] = useState<ShareLinkRecord[]>([]);
   const [health, setHealth] = useState<{ database: string; databaseName?: string; message?: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const importInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const [modalContact, setModalContact] = useState<ContactRecord | null | "new">(null);
@@ -151,6 +153,31 @@ export default function Dashboard() {
     if (!window.confirm(`Delete ${contact.name} from your database? This cannot be undone.`)) return;
     try { await jsonRequest(`/api/contacts/${contact._id}`, { method: "DELETE" }); notify("Contact deleted."); await loadData(false); }
     catch (error) { notify(error instanceof Error ? error.message : "Could not delete contact.", "error"); }
+  }
+  async function importContacts(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const response = await fetch("/api/import", { method: "POST", body, cache: "no-store" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not import this file.");
+      const summary = `Import complete: ${data.created} added, ${data.duplicates} duplicates skipped, ${data.failed} row(s) need attention.`;
+      notify(summary, data.failed ? "info" : "success");
+      if (Array.isArray(data.errors) && data.errors.length) {
+        const details = data.errors.slice(0, 8).map((item: { row: number; message: string }) => `Row ${item.row}: ${item.message}`).join("\n");
+        window.alert(`${summary}\n\nReview these rows and correct the file before trying them again:\n${details}`);
+      }
+      await loadData(false);
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Could not import this file.", "error");
+    } finally {
+      setImporting(false);
+      input.value = "";
+    }
   }
   async function createLink(title: string, category: string, expiryDays: number) {
     setBusy(true);
@@ -211,6 +238,12 @@ export default function Dashboard() {
   }), [contacts, filterCategory, filterStatus, appliedSearch]);
   const counts = useMemo(() => ({ total: contacts.length, new: contacts.filter((item) => item.status === "new").length, active: contacts.filter((item) => item.status === "active" || item.status === "qualified").length, followUps: contacts.filter((item) => item.followUpAt && new Date(item.followUpAt).toDateString() === new Date().toDateString()).length, links: links.filter((item) => item.active && (!item.expiresAt || new Date(item.expiresAt).getTime() > Date.now())).length }), [contacts, links]);
   const categoryCounts = useMemo(() => categories.map((category) => ({ ...category, count: contacts.filter((item) => item.category === category.id).length })), [contacts]);
+  const exportParams = new URLSearchParams();
+  if (filterCategory) exportParams.set("category", filterCategory);
+  if (filterStatus) exportParams.set("status", filterStatus);
+  if (appliedSearch) exportParams.set("q", appliedSearch);
+  const exportFilterQuery = exportParams.toString() ? `&${exportParams.toString()}` : "";
+  const hasActiveExportFilters = Boolean(filterCategory || filterStatus || appliedSearch);
 
   if (!session) return <main className="boot-screen"><BrandMark large /><span className="spinner" /><p>Preparing your private workspace…</p></main>;
   if (!session.authenticated) return <LoginScreen configured={session.configured} onLogin={login} toast={toast} clearToast={() => setToast(null)} />;
@@ -242,7 +275,7 @@ export default function Dashboard() {
           <div className="bottom-note"><span>✦</span><p><strong>Your data, your control.</strong> Contacts are stored in your MongoDB database. Public form links collect details but never expose your contact list.</p><button onClick={() => setTab("settings")}>Workspace details <span>→</span></button></div>
         </div> : null}
 
-        {tab === "contacts" ? <section className="panel database-panel"><div className="database-toolbar"><form className="search-form" onSubmit={applyFilters}><span className="search-icon"><Icon name="search" /></span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, phone, company, city…" aria-label="Search contacts" /><button type="submit">Search</button></form><div className="database-actions"><label className="filter-control"><Icon name="filter" /><select value={filterCategory} onChange={(event) => setFilterCategory(event.target.value)} aria-label="Filter by category"><option value="">All categories</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label><select className="filter-control status-filter" value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)} aria-label="Filter by status"><option value="">All statuses</option>{contactStatuses.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select><div className="export-menu"><button className="secondary-button export-trigger"><Icon name="download" /> Export <span>⌄</span></button><div className="export-options"><a href="/api/export?format=xlsx"><span className="export-file-icon">X</span><span><strong>Excel workbook</strong><small>.xlsx · Full database</small></span></a><a href="/api/export?format=csv"><span className="export-file-icon csv-file">≡</span><span><strong>CSV file</strong><small>.csv · Spreadsheet ready</small></span></a><button onClick={() => window.print()}><span className="export-file-icon pdf-file">P</span><span><strong>Save as PDF</strong><small>Print / Save PDF</small></span></button></div></div><button className="primary-button compact-add" onClick={() => setModalContact("new")}><Icon name="plus" /> Add</button></div></div>
+        {tab === "contacts" ? <section className="panel database-panel"><div className="database-toolbar"><form className="search-form" onSubmit={applyFilters}><span className="search-icon"><Icon name="search" /></span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, phone, company, city…" aria-label="Search contacts" /><button type="submit">Search</button></form><div className="database-actions"><label className="filter-control"><Icon name="filter" /><select value={filterCategory} onChange={(event) => setFilterCategory(event.target.value)} aria-label="Filter by category"><option value="">All categories</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label><select className="filter-control status-filter" value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)} aria-label="Filter by status"><option value="">All statuses</option>{contactStatuses.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select><input ref={importInputRef} className="hidden-file-input" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={importContacts} aria-label="Choose a CSV or Excel file to import" /><button className="secondary-button import-trigger" type="button" onClick={() => importInputRef.current?.click()} disabled={importing} title="Import CSV or Excel contacts; duplicates by phone or email are skipped"><Icon name="upload" /> {importing ? "Importing…" : "Import"}</button><div className="export-menu"><button className="secondary-button export-trigger"><Icon name="download" /> Export <span>⌄</span></button><div className="export-options"><a href={`/api/export?format=xlsx${exportFilterQuery}`}><span className="export-file-icon">X</span><span><strong>Excel workbook</strong><small>.xlsx · {hasActiveExportFilters ? "Current filters" : "Full database"}</small></span></a><a href={`/api/export?format=csv${exportFilterQuery}`}><span className="export-file-icon csv-file">≡</span><span><strong>CSV file</strong><small>.csv · {hasActiveExportFilters ? "Current filters" : "Full database"}</small></span></a><button onClick={() => window.print()}><span className="export-file-icon pdf-file">P</span><span><strong>Save as PDF</strong><small>Print / Save PDF</small></span></button></div></div><button className="primary-button compact-add" onClick={() => setModalContact("new")}><Icon name="plus" /> Add</button></div></div>
           <div className="table-summary"><span><strong>{filteredContacts.length}</strong> record{filteredContacts.length === 1 ? "" : "s"}{(filterCategory || filterStatus || appliedSearch) ? " match your filters" : " in your current view"}</span><div><span className="summary-dot" /> MongoDB synced on refresh</div></div>
           {filteredContacts.length ? <div className="table-scroll"><table className="contacts-table"><thead><tr><th>CONTACT</th><th>CATEGORY</th><th>PHONE / EMAIL</th><th>LOCATION</th><th>STATUS</th><th>UPDATED</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{filteredContacts.map((contact, index) => <tr key={contact._id}><td><div className="table-person"><span className={`contact-avatar avatar-${index % 5}`}>{initials(contact.name)}</span><span><strong>{contact.name || "Unnamed contact"}</strong><small>{contact.organization || contact.details?.supplierType || contact.details?.contractorType || "Individual / business"}</small></span></div></td><td><span className="category-tag">{categoryLabel(contact.category)}</span></td><td><div className="contact-methods">{contact.phone ? <a href={`tel:${contact.phone}`}>{contact.phone}</a> : <span className="muted-cell">No phone</span>}{contact.email ? <a href={`mailto:${contact.email}`}>{contact.email}</a> : null}</div></td><td><span className="location-cell">{[contact.city, contact.state].filter(Boolean).join(", ") || "—"}</span></td><td><StatusPill status={contact.status} /></td><td><span className="updated-cell">{relativeDate(contact.updatedAt)}</span></td><td><div className="row-actions"><button className="icon-button row-edit" onClick={() => setModalContact(contact)} title="View / edit" aria-label={`Edit ${contact.name}`}><Icon name="edit" /></button><button className="icon-button row-more" onClick={() => openWhatsApp(contact.details?.whatsapp || contact.phone, `Hello ${contact.name}, contacting you regarding ${categoryLabel(contact.category)}.`)} title="Message this contact" aria-label={`Message ${contact.name} on WhatsApp`}>◉</button><button className="icon-button row-share" onClick={() => shareContact(contact)} title="Share contact details on WhatsApp" aria-label={`Share details for ${contact.name}`}><Icon name="share" /></button><button className="icon-button row-mail" onClick={() => emailContactSummary(contact)} title="Email contact details" aria-label={`Email details for ${contact.name}`}><Icon name="mail" /></button><button className="icon-button row-delete" onClick={() => deleteContact(contact)} title="Delete record" aria-label={`Delete ${contact.name}`}><Icon name="trash" /></button></div></td></tr>)}</tbody></table></div> : <div className="empty-state"><span className="empty-icon"><Icon name="search" /></span><h3>{contacts.length ? "No records match these filters" : "Your contact database is ready"}</h3><p>{contacts.length ? "Try another search term or clear one of the filters." : "Add a contact yourself, or create a share link so a supplier or contractor can fill in their own details."}</p><div className="empty-actions">{contacts.length ? <button className="secondary-button" onClick={() => { setSearch(""); setAppliedSearch(""); setFilterCategory(""); setFilterStatus(""); }}>Clear filters</button> : <><button className="secondary-button" onClick={() => setModalContact("new")}>Add contact</button><button className="primary-button" onClick={() => { setTab("links"); setLinkModal(true); }}>Create a share form</button></>}</div></div>}
           <div className="database-footer"><span>Personal database · Visible only after admin sign-in</span><span>Showing up to 1,000 records loaded</span></div>

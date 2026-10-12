@@ -8,7 +8,8 @@ export const metadata: Metadata = {
   description: brand.tagline,
   applicationName: brand.name,
   metadataBase: brand.siteUrl ? new URL(brand.siteUrl) : undefined,
-  icons: { icon: brand.faviconUrl },
+  icons: { icon: brand.faviconUrl, apple: "/apple-touch-icon.png" },
+  manifest: "/manifest.webmanifest",
   robots: { index: false, follow: false },
 };
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: brand.color };

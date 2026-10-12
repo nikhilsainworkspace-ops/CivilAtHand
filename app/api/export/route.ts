@@ -32,9 +32,25 @@ export async function GET(request: Request) {
   if (!(await isAdmin())) return NextResponse.json({ error: "Sign in to continue." }, { status: 401 });
   const url = new URL(request.url);
   const format = url.searchParams.get("format") === "csv" ? "csv" : "xlsx";
+  const filter: Record<string, any> = {};
+  const category = (url.searchParams.get("category") || "").slice(0, 80);
+  const status = (url.searchParams.get("status") || "").slice(0, 40);
+  const query = (url.searchParams.get("q") || "").trim().slice(0, 100);
+  if (category) filter.category = category;
+  if (["new", "contacted", "qualified", "active", "on-hold", "closed"].includes(status)) filter.status = status;
+  if (query) {
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const expression = new RegExp(escaped, "i");
+    const detailKeys = Array.from(new Set(categories.flatMap((item) => getFields(item.id).map((field) => field.key))));
+    filter.$or = [
+      { name: expression }, { phone: expression }, { email: expression }, { organization: expression },
+      { city: expression }, { state: expression }, { tags: expression }, { notes: expression },
+      ...detailKeys.map((key) => ({ [`details.${key}`]: expression })),
+    ];
+  }
   try {
     await dbConnect();
-    const contacts = await Contact.find().sort({ updatedAt: -1 }).limit(20_000).lean();
+    const contacts = await Contact.find(filter).sort({ updatedAt: -1 }).limit(20_000).lean();
     const customKeys = Array.from(new Set(categories.flatMap((category) => getFields(category.id).map((field) => field.key)))).filter((key) => !["fullName", "phone", "whatsapp", "email", "organization", "city", "state", "workingLocations", "notes"].includes(key));
     const customColumns = customKeys.map((key) => ({ key: `details.${key}`, header: getFields(categories.find((category) => getFields(category.id).some((field) => field.key === key))?.id || "").find((field) => field.key === key)?.label || key }));
     const columns = [...baseColumns, ...customColumns];

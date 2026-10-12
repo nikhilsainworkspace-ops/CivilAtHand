@@ -11,9 +11,9 @@ This repository is designed to be imported into a **new GitHub repository and de
 - **Civil-specific intake forms:** distinct fields for manpower suppliers, vendors/material suppliers, subcontractors, contractors, liaisoning/outsourcing, investors/execution partners, business development, financial resources, joint ventures/strategic partnerships and clients.
 - **Public bilingual forms:** people can open a generated link without an account. Field prompts use English and Hindi (for example, `Name / नाम`). A successful submission is saved to MongoDB and appears in the admin database.
 - **Private-by-token links:** each link uses a 192-bit random token. Links can be paused, activated, renamed, set to expire, or deleted. The link opens only its own form; it does not grant dashboard access or show existing records.
-- **Export:** download the full database as a formatted XLSX workbook or UTF-8 CSV. Use **Save PDF** / browser **Print → Save as PDF** for a printable contact-list report. Excel export includes the fixed record fields and the union of civil-specific form fields.
+- **Export and bulk import:** download the full database or the currently selected category/status/search results as a formatted XLSX workbook or UTF-8 CSV. Import contacts from CSV or `.xlsx` files (up to 1,000 rows / 4 MB per import); the importer validates each row and skips duplicate phone numbers or email addresses. Use **Save PDF** / browser **Print → Save as PDF** for a printable contact-list report. Excel export includes the fixed record fields and the union of civil-specific form fields.
 - **Share / contact helpers:** copy public form URLs, share a form in WhatsApp, call saved phone numbers, open WhatsApp for a contact, and open an email draft with `mailto:`.
-- **Configurable identity:** app name, tagline, canonical URL, colour, logo and favicon are driven by environment variables. Changing the actual domain still requires adding/assigning that domain in Vercel; no source-code changes are needed.
+- **Configurable identity and logo pack:** your uploaded building-and-hand logo is installed as the default in `public/civil-at-hand-logo.png`, with square app icon, ICO favicon, Apple touch icon and white-background image variants. The site also includes a lightweight installable-app manifest, so you can add the private workspace to your phone home screen after deployment. App name, tagline, canonical URL, colour, logo and favicon remain configurable through environment variables. Changing the actual domain still requires adding/assigning that domain in Vercel; no source-code changes are needed.
 - **Security basics:** HTTP-only signed admin session cookie, constant-time credential comparisons, basic login throttling tracked in MongoDB, server-side access checks on admin APIs, request validation, and a honeypot on public forms.
 
 ## Requirements
@@ -39,8 +39,8 @@ Copy `.env.example` to `.env.local` for local development. Replace every placeho
 | `NEXT_PUBLIC_APP_TAGLINE` | No | Small brand description displayed in the UI. |
 | `NEXT_PUBLIC_SITE_URL` | Recommended in production | Canonical URL including `https://`, no trailing slash. Used when showing/building share links. Without it, links use the request's origin. |
 | `NEXT_PUBLIC_BRAND_COLOR` | No | Main hex colour such as `#176b59`. |
-| `NEXT_PUBLIC_BRAND_LOGO_URL` | No | Public HTTPS image URL or a path under `public/` such as `/brand-logo.png`. Leave blank to use the built-in mark. |
-| `NEXT_PUBLIC_FAVICON_URL` | No | Public favicon URL or path under `public/` such as `/favicon.png`. Leave blank to use the built-in generated SVG mark. |
+| `NEXT_PUBLIC_BRAND_LOGO_URL` | No | Public HTTPS image URL or a path under `public/`. Leave blank to use your included `/civil-at-hand-logo.png` by default. |
+| `NEXT_PUBLIC_FAVICON_URL` | No | Public favicon URL or path under `public/`. Leave blank to use the included `/favicon.ico` by default. |
 | `ADMIN_USERNAME` | **Yes** | Username for the private admin panel. |
 | `ADMIN_PASSWORD` | **Yes** | Strong, unique admin password. It is not stored in MongoDB. |
 | `ADMIN_SESSION_SECRET` | **Yes** | Unique random secret, at least 32 characters, used to sign sessions. Never share or commit it. |
@@ -83,7 +83,7 @@ Whenever you change branding environment variables, redeploy so the updated valu
 3. Choose the correct civil category, name the link (example: `Manpower supplier registration – North India`), and optionally set an expiry.
 4. Copy the generated URL or share it through WhatsApp. People can fill in the form without a password.
 5. New submissions appear under **Contact database** with status `New`. Search/filter, update the status, add tags/notes, and set a follow-up date.
-6. Download Excel or CSV whenever you need an offline copy. Use Save PDF for a printable report.
+6. Download Excel or CSV whenever you need an offline copy. Use Save PDF for a printable report. To restore contacts from a spreadsheet, open **Contact database → Import**, select a `.csv` or `.xlsx` file, then review the import summary. Duplicate records are detected by phone number or email and skipped; rows with missing/invalid data are listed for correction.
 
 ### Current form categories
 
@@ -98,7 +98,7 @@ Whenever you change branding environment variables, redeploy so the updated valu
 - Joint Venture & Strategic Partnership — contribution, desired partner, project types, arrangement and regions.
 - Client Network — client type, project requirement, expected start, budget and procurement needs.
 
-The bilingual field labels aim to be easier to complete on a phone. The saved record remains private to the admin; the public page does not display a directory.
+The bilingual field labels aim to be easier to complete on a phone. The saved record remains private to the admin; the public page does not display a directory. Once deployed, you can use your browser menu to add Civil At Hand to the phone home screen; the manifest supplies the app name, theme and icon, but the app deliberately does not cache private contact data offline.
 
 ## 5. Data model and future changes
 
@@ -129,7 +129,9 @@ The bilingual field labels aim to be easier to complete on a phone. The saved re
 
 **A form does not open** — confirm the token link has not expired, been paused or deleted. Reactivate a paused link or create a replacement.
 
-**Logo / favicon is not updated** — ensure the image URL is publicly reachable over HTTPS, update the relevant environment variable and redeploy. Clear the browser favicon cache if needed.
+**Logo / favicon is not updated** — the default assets are in `public/`. If using a custom URL, ensure it is publicly reachable over HTTPS, update the relevant environment variable and redeploy. Clear the browser favicon cache if needed.
+
+**Import reports skipped rows** — check the displayed row number and error. Include a `Name` (or `Full Name`), `Category`, and a phone number or email address. Category values should match one of the civil-work category labels in the app. Duplicate phone numbers or email addresses are intentionally skipped.
 
 ## Project files
 
@@ -140,9 +142,11 @@ app/
   api/links/                Protected public-link management API
   api/public/[token]/       Public form loading and submission
   api/export/               Full XLSX and CSV database export
+  api/import/               Admin-only CSV/XLSX importer with duplicate checks
   api/health/               Protected MongoDB health check
   join/[token]/             Public intake form page
-  icon.svg/                 Generated favicon route
+  icon.svg/                 Generated favicon route (kept as a fallback)
+  manifest.ts               Installable app metadata for phones
   globals.css               Responsive admin and public-form UI
 components/
   dashboard.tsx             Responsive private admin workspace

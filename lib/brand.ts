@@ -5,8 +5,8 @@ export const brand = {
   color: /^#[0-9a-fA-F]{6}$/.test(process.env.NEXT_PUBLIC_BRAND_COLOR || "")
     ? process.env.NEXT_PUBLIC_BRAND_COLOR!
     : "#176b59",
-  logoUrl: process.env.NEXT_PUBLIC_BRAND_LOGO_URL?.trim() || "",
-  faviconUrl: process.env.NEXT_PUBLIC_FAVICON_URL?.trim() || "/icon.svg",
+  logoUrl: process.env.NEXT_PUBLIC_BRAND_LOGO_URL?.trim() || "/civil-at-hand-logo.png",
+  faviconUrl: process.env.NEXT_PUBLIC_FAVICON_URL?.trim() || "/favicon.ico",
 };
 
 export function getBaseUrl(requestUrl?: string) {

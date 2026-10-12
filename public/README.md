@@ -1,10 +1,16 @@
 # Brand assets
 
-This folder is served publicly by Next.js. To change the logo or favicon without editing application code:
+The Civil At Hand logo supplied by the owner is included in several ready-to-use formats:
 
-1. Drop your logo image into this folder, for example `brand-logo.png`.
-2. In Vercel Environment Variables set `NEXT_PUBLIC_BRAND_LOGO_URL=/brand-logo.png`.
-3. Drop your favicon into this folder, for example `favicon.png`, and set `NEXT_PUBLIC_FAVICON_URL=/favicon.png`.
-4. Redeploy the project so the new environment values are used.
+- `civil-at-hand-logo.png` — transparent full-size logo used by the dashboard and public intake forms by default.
+- `civil-at-hand-icon.png` — square 512px app icon.
+- `civil-at-hand-icon-192.png` — square 192px install icon.
+- `favicon.ico` — browser favicon with 16px, 32px and 48px sizes.
+- `apple-touch-icon.png` — 180px icon for mobile home-screen bookmarks.
+- `civil-at-hand-logo-white.jpg` — white-background version for documents and places where transparency is unsupported.
 
-You can also use public HTTPS image URLs instead of files. Use small, reasonably sized image files; a square transparent PNG or SVG is a good logo format. Do not put passwords, database exports, private documents or contact data in this folder because files here are public.
+`/manifest.webmanifest` is generated from `app/manifest.ts` for phone home-screen installation.
+
+No environment-variable change is needed for these defaults. To use a different logo, place its public asset in this folder and set `NEXT_PUBLIC_BRAND_LOGO_URL=/your-logo.png`. To use a different favicon, set `NEXT_PUBLIC_FAVICON_URL=/your-favicon.ico` (or another browser-supported image URL). Redeploy after changing Vercel environment variables.
+
+Files in `public/` are served publicly. Do not place passwords, database exports, private documents or contact data here.
