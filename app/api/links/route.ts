@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   try {
     await dbConnect();
     const links = await ShareLink.find().sort({ createdAt: -1 }).lean();
-    return NextResponse.json({ links: links.map((item) => ({ ...item, shareUrl: shareUrl(item.token, request.url) })) }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ links: (links as unknown as { token: string }[]).map((item) => ({ ...item, shareUrl: shareUrl(item.token, request.url) })) }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("Share links list error:", error);
     return NextResponse.json({ error: "Could not load share links." }, { status: 503 });

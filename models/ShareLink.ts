@@ -1,4 +1,5 @@
-import mongoose, { Schema } from "mongoose";
+import mongoose, { Schema, type Model } from "mongoose";
+import type { ShareLinkDoc } from "@/lib/types";
 
 const ShareLinkSchema = new Schema({
   token: { type: String, required: true, unique: true, index: true },
@@ -8,4 +9,5 @@ const ShareLinkSchema = new Schema({
   expiresAt: { type: Date, default: null },
   submissions: { type: Number, default: 0 },
 }, { timestamps: true });
-export const ShareLink = mongoose.models.ShareLink || mongoose.model("ShareLink", ShareLinkSchema);
+
+export const ShareLink = (mongoose.models.ShareLink || mongoose.model("ShareLink", ShareLinkSchema)) as unknown as Model<ShareLinkDoc>;

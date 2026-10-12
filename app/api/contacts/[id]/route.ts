@@ -1,9 +1,12 @@
+import mongoose from "mongoose";
 import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/auth";
 import { dbConnect } from "@/lib/db";
 import { normalizeContactInput } from "@/lib/contact-input";
+import { findDuplicateContacts } from "@/lib/duplicate-check";
+import { InputError } from "@/lib/errors";
+import { contactStatuses } from "@/lib/categories";
 import { Contact } from "@/models/Contact";
-import mongoose from "mongoose";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ id: string }> };
@@ -13,11 +16,15 @@ export async function PUT(request: Request, context: Context) {
   const { id } = await context.params;
   if (!mongoose.isValidObjectId(id)) return NextResponse.json({ error: "Invalid record ID." }, { status: 400 });
   try {
-    const payload = await request.json() as Record<string, unknown>;
+    const payload = (await request.json()) as Record<string, unknown>;
     await dbConnect();
-    const existing = await Contact.findById(id).lean() as { source?: string; linkId?: string } | null;
+    const existing = (await Contact.findById(id).lean()) as unknown as { source?: string; linkId?: string } | null;
     if (!existing) return NextResponse.json({ error: "Record not found." }, { status: 404 });
     const normalized = normalizeContactInput(payload);
+    if (payload.allowDuplicate !== true) {
+      const duplicates = await findDuplicateContacts(normalized.phone, normalized.email, id);
+      if (duplicates.length) return NextResponse.json({ error: "Another contact already uses this phone number or email.", duplicates }, { status: 409 });
+    }
     // Editing a record must not erase how it entered the system.
     normalized.source = existing.source || normalized.source;
     normalized.linkId = existing.linkId || normalized.linkId;
@@ -25,10 +32,38 @@ export async function PUT(request: Request, context: Context) {
     if (!contact) return NextResponse.json({ error: "Record not found." }, { status: 404 });
     return NextResponse.json({ contact });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Could not update this record.";
     console.error("Contact update error:", error);
-    const validationError = /required|provide|complete|valid civil-work category|invalid record ID/i.test(message);
-    return NextResponse.json({ error: message }, { status: validationError ? 400 : 503 });
+    if (error instanceof InputError) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ error: "Could not update this record. Check the database connection and try again." }, { status: 503 });
+  }
+}
+
+/** Quick actions used by reminders: change the follow-up date and/or status without re-validating the whole record. */
+export async function PATCH(request: Request, context: Context) {
+  if (!(await isAdmin())) return NextResponse.json({ error: "Sign in to continue." }, { status: 401 });
+  const { id } = await context.params;
+  if (!mongoose.isValidObjectId(id)) return NextResponse.json({ error: "Invalid record ID." }, { status: 400 });
+  try {
+    const body = (await request.json()) as { followUpAt?: string | null; status?: string };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const update: Record<string, any> = {};
+    if ("followUpAt" in body) {
+      if (body.followUpAt === null || body.followUpAt === "") update.followUpAt = null;
+      else if (typeof body.followUpAt === "string" && !Number.isNaN(Date.parse(body.followUpAt))) update.followUpAt = new Date(body.followUpAt);
+      else return NextResponse.json({ error: "Choose a valid follow-up date." }, { status: 400 });
+    }
+    if (typeof body.status === "string") {
+      if (!contactStatuses.some((item) => item.value === body.status)) return NextResponse.json({ error: "Choose a valid status." }, { status: 400 });
+      update.status = body.status;
+    }
+    if (!Object.keys(update).length) return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
+    await dbConnect();
+    const contact = await Contact.findByIdAndUpdate(id, update, { new: true, runValidators: true }).lean();
+    if (!contact) return NextResponse.json({ error: "Record not found." }, { status: 404 });
+    return NextResponse.json({ contact });
+  } catch (error) {
+    console.error("Contact quick update error:", error);
+    return NextResponse.json({ error: "Could not update this record." }, { status: 503 });
   }
 }
 

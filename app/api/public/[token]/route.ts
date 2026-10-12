@@ -3,6 +3,7 @@ import { dbConnect } from "@/lib/db";
 import { brand } from "@/lib/brand";
 import { getCategory, getFields } from "@/lib/categories";
 import { normalizeContactInput } from "@/lib/contact-input";
+import { InputError } from "@/lib/errors";
 import { Contact } from "@/models/Contact";
 import { ShareLink } from "@/models/ShareLink";
 
@@ -14,7 +15,7 @@ export async function GET(_request: Request, context: Context) {
   if (!/^[a-f0-9]{48}$/.test(token)) return NextResponse.json({ error: "This form link is invalid or no longer available." }, { status: 404 });
   try {
     await dbConnect();
-    const link = await ShareLink.findOne({ token, active: true }).lean() as { expiresAt?: Date | null; category: string; title: string; _id: unknown } | null;
+    const link = (await ShareLink.findOne({ token, active: true }).lean()) as unknown as { expiresAt?: Date | null; category: string; title: string; _id: unknown } | null;
     if (!link || (link.expiresAt && link.expiresAt.getTime() < Date.now())) {
       return NextResponse.json({ error: "This form link is closed or has expired. Please ask the person who shared it for a new link." }, { status: 404 });
     }
@@ -44,13 +45,11 @@ export async function POST(request: Request, context: Context) {
     }
     const normalized = normalizeContactInput({ category: link.category, details: body.details, source: "public-link", linkId: String(link._id), status: "new" });
     const contact = await Contact.create(normalized);
-    link.submissions = Number(link.submissions || 0) + 1;
-    await link.save();
+    await ShareLink.updateOne({ _id: link._id }, { $inc: { submissions: 1 } });
     return NextResponse.json({ ok: true, reference: String(contact._id) }, { status: 201 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Your details could not be submitted. Please try again.";
     console.error("Public form submission error:", error);
-    const userInputError = /required|provide|complete|valid civil-work category/i.test(message);
-    return NextResponse.json({ error: message }, { status: userInputError ? 400 : 503 });
+    if (error instanceof InputError) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ error: "Your details could not be submitted right now. Please try again in a few minutes. / अभी जानकारी नहीं भेजी जा सकी, कृपया कुछ देर बाद फिर कोशिश करें।" }, { status: 503 });
   }
 }

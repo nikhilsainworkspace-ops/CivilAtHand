@@ -13,7 +13,8 @@ export async function PATCH(request: Request, context: Context) {
   if (!mongoose.isValidObjectId(id)) return NextResponse.json({ error: "Invalid link ID." }, { status: 400 });
   try {
     const body = await request.json() as { active?: boolean; title?: string; expiryDays?: number | string | null };
-    const update: Record<string, unknown> = {};
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const update: Record<string, any> = {};
     if (typeof body.active === "boolean") update.active = body.active;
     if (typeof body.title === "string" && body.title.trim()) update.title = body.title.trim().slice(0, 160);
     if (body.expiryDays !== undefined) {

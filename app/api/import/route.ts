@@ -4,6 +4,8 @@ import { isAdmin } from "@/lib/auth";
 import { dbConnect } from "@/lib/db";
 import { categories, contactStatuses, getFields } from "@/lib/categories";
 import { cleanText } from "@/lib/contact-input";
+import { parseCsv, unprotectCell } from "@/lib/csv";
+import { emailKey, phoneKey } from "@/lib/duplicates";
 import { Contact } from "@/models/Contact";
 
 export const runtime = "nodejs";
@@ -13,7 +15,6 @@ const MAX_FILE_BYTES = 4 * 1024 * 1024;
 const MAX_DATA_ROWS = 1000;
 const MAX_REPORTED_ERRORS = 20;
 
-type ImportRow = { line: number; cells: string[] };
 type PreparedContact = {
   category: string;
   name: string;
@@ -34,35 +35,7 @@ type PreparedContact = {
 function normalizeHeader(value: string) {
   return value.normalize("NFKD").toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
-function digits(value: string) { return value.replace(/\D/g, ""); }
-function emailKey(value: string) { return value.trim().toLowerCase(); }
 function rowIsEmpty(row: string[]) { return row.every((cell) => !cell.trim()); }
-
-function parseCsv(text: string): string[][] {
-  const input = text.replace(/^\uFEFF/, "");
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let cell = "";
-  let quoted = false;
-
-  for (let i = 0; i < input.length; i += 1) {
-    const char = input[i];
-    if (quoted) {
-      if (char === '"' && input[i + 1] === '"') { cell += '"'; i += 1; }
-      else if (char === '"') quoted = false;
-      else cell += char;
-      continue;
-    }
-    if (char === '"' && cell.length === 0) quoted = true;
-    else if (char === ",") { row.push(cell); cell = ""; }
-    else if (char === "\n" || char === "\r") {
-      if (char === "\r" && input[i + 1] === "\n") i += 1;
-      row.push(cell); rows.push(row); row = []; cell = "";
-    } else cell += char;
-  }
-  if (cell.length || row.length) { row.push(cell); rows.push(row); }
-  return rows;
-}
 
 function cellText(value: unknown): string {
   if (value === undefined || value === null) return "";
@@ -197,7 +170,7 @@ export async function POST(request: Request) {
 
     const bytes = Buffer.from(await file.arrayBuffer());
     const rows = await readRows(file.name, bytes);
-    const usableRows = rows.filter((row) => !rowIsEmpty(row));
+    const usableRows = rows.map((row) => row.map(unprotectCell)).filter((row) => !rowIsEmpty(row));
     if (usableRows.length < 2) return NextResponse.json({ error: "The file needs a header row and at least one contact row." }, { status: 400 });
     if (usableRows.length - 1 > MAX_DATA_ROWS) return NextResponse.json({ error: `Import up to ${MAX_DATA_ROWS} contacts at a time. Split this file into smaller files and try again.` }, { status: 413 });
 
@@ -219,13 +192,13 @@ export async function POST(request: Request) {
     }
 
     await dbConnect();
-    const existing = await Contact.find({}, { phone: 1, email: 1 }).lean();
-    const seenPhones = new Set(existing.map((contact) => digits(String(contact.phone || ""))).filter(Boolean));
+    const existing = (await Contact.find({}, { phone: 1, email: 1 }).lean()) as unknown as { phone?: string; email?: string }[];
+    const seenPhones = new Set(existing.map((contact) => phoneKey(contact.phone)).filter(Boolean));
     const seenEmails = new Set(existing.map((contact) => emailKey(String(contact.email || ""))).filter(Boolean));
     const toInsert: PreparedContact[] = [];
     let duplicates = 0;
     for (const contact of prepared) {
-      const phone = digits(contact.phone);
+      const phone = phoneKey(contact.phone);
       const email = emailKey(contact.email);
       if ((phone && seenPhones.has(phone)) || (email && seenEmails.has(email))) { duplicates += 1; continue; }
       toInsert.push(contact);

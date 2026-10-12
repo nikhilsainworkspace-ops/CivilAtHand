@@ -25,7 +25,7 @@ export async function POST(request: Request) {
   try {
     await dbConnect();
     const key = clientKey(request);
-    const attempt = await LoginAttempt.findOne({ key }).lean() as { count?: number; windowStart?: Date; blockedUntil?: Date | null } | null;
+    const attempt = (await LoginAttempt.findOne({ key }).lean()) as unknown as { count?: number; windowStart?: Date; blockedUntil?: Date | null } | null;
     if (attempt?.blockedUntil && new Date(attempt.blockedUntil).getTime() > Date.now()) {
       return NextResponse.json({ error: "Too many failed attempts. Please wait 15 minutes before trying again." }, { status: 429 });
     }

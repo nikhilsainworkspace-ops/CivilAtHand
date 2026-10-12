@@ -28,11 +28,16 @@ Do not add unrelated consumer/social-media features. Keep the product simple for
 - Add a civil-work contact type and its bilingual fields in `lib/categories.ts`. The dashboard form editor, link generator and export builder consume this schema.
 - Contact-specific answers live in `Contact.details`; preserve them during editing and include them in Excel/CSV export. Preserve the admin-only CSV/XLSX import flow in `app/api/import/route.ts` and keep the CSV/XLSX exporter filter-aware without changing full-export defaults: validate each row, cap file size/row count, and skip duplicates by phone/email.
 - Add any new server endpoint under `app/api` and protect admin routes with `isAdmin()`.
+- Projects/leads live in `models/Project.ts` with validation in `lib/projects.ts`; follow-up bucketing in `lib/followups.ts`; duplicate rules in `lib/duplicates.ts` (phone = last 10 digits, email lower-case) and `lib/duplicate-check.ts`; report maths in `lib/reports.ts`. Keep these pure and covered by `tests/logic.test.ts`.
+- Validation errors must be thrown as `InputError` (`lib/errors.ts`) so routes return 400; anything else is a 503.
+- Mongoose models are exported with an explicit `Model<Doc>` type (`lib/types.ts`) via `as unknown as Model<...>`. Do not go back to `mongoose.models.X || mongoose.model(...)` without that cast: the union type breaks `next build` under strict TypeScript.
+- Contact create/edit returns HTTP 409 with `duplicates` when a phone/email matches; the client retries with `allowDuplicate: true` only after the admin confirms. Public submissions are always accepted (never reveal whether a record exists).
+- Never change `MONGODB_DB` handling or existing field names: records and `/join/<token>` links in production must keep working. Only add optional fields.
 - Keep the dashboard and public forms responsive at both small phone widths and desktop widths. Preserve the lightweight installable-app manifest and never add offline caching of private contact data. Avoid breaking unrelated sections when fixing a component.
 - For database changes, update the corresponding Mongoose model under `models/` and validate all untrusted input server-side.
 
 ## Before finishing a change
-1. Run `npm run build` and resolve TypeScript/Next.js errors.
-2. Check login, dashboard session/logout, contact create/edit/delete, link create/pause/reactivate, public submission and export paths.
+1. Run `npm run typecheck`, `npm test` and `npm run build`, and resolve every error.
+2. Check login, dashboard session/logout, contact create/edit/delete, duplicate warning, follow-up done/snooze, project create/edit/stage change, link create/pause/reactivate, public submission, import and export paths.
 3. Do not commit `.env.local`, database URIs, passwords, session secrets or real contact data.
 4. Keep README setup and environment-variable documentation current.

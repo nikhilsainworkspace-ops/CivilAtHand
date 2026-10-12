@@ -1,5 +1,7 @@
-import mongoose, { Schema } from "mongoose";
+import mongoose, { Schema, type Model } from "mongoose";
+import type { ContactDoc } from "@/lib/types";
 
+// The schema is unchanged from earlier versions, so existing records keep working.
 const ContactSchema = new Schema({
   category: { type: String, required: true, index: true },
   name: { type: String, required: true, trim: true, maxlength: 160 },
@@ -18,4 +20,6 @@ const ContactSchema = new Schema({
 }, { timestamps: true, minimize: false });
 
 ContactSchema.index({ name: "text", organization: "text", email: "text", phone: "text", city: "text", state: "text" });
-export const Contact = mongoose.models.Contact || mongoose.model("Contact", ContactSchema);
+ContactSchema.index({ followUpAt: 1 });
+
+export const Contact = (mongoose.models.Contact || mongoose.model("Contact", ContactSchema)) as unknown as Model<ContactDoc>;

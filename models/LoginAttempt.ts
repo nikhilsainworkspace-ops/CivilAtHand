@@ -1,4 +1,5 @@
-import mongoose, { Schema } from "mongoose";
+import mongoose, { Schema, type Model } from "mongoose";
+import type { LoginAttemptDoc } from "@/lib/types";
 
 const LoginAttemptSchema = new Schema({
   key: { type: String, required: true, unique: true },
@@ -7,4 +8,5 @@ const LoginAttemptSchema = new Schema({
   blockedUntil: { type: Date, default: null },
 }, { timestamps: true });
 LoginAttemptSchema.index({ updatedAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 2 });
-export const LoginAttempt = mongoose.models.LoginAttempt || mongoose.model("LoginAttempt", LoginAttemptSchema);
+
+export const LoginAttempt = (mongoose.models.LoginAttempt || mongoose.model("LoginAttempt", LoginAttemptSchema)) as unknown as Model<LoginAttemptDoc>;
