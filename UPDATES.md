@@ -82,3 +82,6 @@ No database migration. Environment variables are the same as before (see README)
 - A **Find a panel** search filters navigation labels without touching records.
 - Beginning/end scroll controls work vertically on desktop and horizontally on tablet/mobile; the selected panel is scrolled into view when possible.
 - All existing panels remain in the menu; no environment variables, database migration or dependencies were added for this change.
+
+- Security hardening: auto-lock preference moved from browser `localStorage` into a protected MongoDB preference record; logout revokes the session, expires the HTTP-only cookie, clears app state and browser storage/cache, and broadcasts logout to other tabs. Dashboard/API/tokenised responses receive no-store headers and open tabs periodically revalidate their server session.
+- Server activity heartbeat: live admin interactions refresh the server-side idle timestamp on a throttled interval; periodic read-only session probes do not extend an unattended session.

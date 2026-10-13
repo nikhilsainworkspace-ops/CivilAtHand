@@ -8,9 +8,9 @@ type Device = { _id: string; ip: string; agent: string; createdAt: string; lastS
 type Entry = { _id?: string; at: string; action: string; detail: string; ip: string; agent: string };
 
 const ACTION_LABELS: Record<string, string> = {
-  login: "Signed in", "login-failed": "Failed sign-in", logout: "Signed out", "contact-deleted": "Contact deleted", "contacts-bulk-deleted": "Contacts deleted (bulk)",
+  login: "Signed in", "login-failed": "Failed sign-in", logout: "Signed out", "logout-failed": "Sign-out needs attention", "contact-deleted": "Contact deleted", "contacts-bulk-deleted": "Contacts deleted (bulk)",
   "contacts-bulk-updated": "Contacts updated (bulk)", "contacts-merged": "Duplicates merged", "room-created": "Shared database created", "room-updated": "Shared database changed",
-  "room-deleted": "Shared database deleted", "backup-downloaded": "Backup downloaded", "sessions-revoked": "Devices signed out", "session-revoked": "Device signed out", "data-exported": "Data exported", "data-imported": "Contacts imported",
+  "room-deleted": "Shared database deleted", "backup-downloaded": "Backup downloaded", "sessions-revoked": "Devices signed out", "session-revoked": "Device signed out", "data-exported": "Data exported", "data-imported": "Contacts imported", "security-setting-updated": "Security preference updated",
 };
 
 export default function SecurityPanel({ twoFactor, autoLockMinutes, onAutoLock, notify }: { twoFactor: boolean; autoLockMinutes: number; onAutoLock: (minutes: number) => void; notify: Notify }) {
@@ -51,8 +51,9 @@ export default function SecurityPanel({ twoFactor, autoLockMinutes, onAutoLock, 
   const grouped = setup ? setup.secret.replace(/(.{4})/g, "$1 ").trim() : "";
 
   return <div className="sec-view">
-    <section className="panel sec-card sec-hero"><div><p className="eyebrow">PRIVATE PORTAL</p><h2>Security centre</h2><p>This portal is for you only. Nobody can sign up, and the only outsiders who ever see anything are people you send a time-limited link to.</p></div>
-      <ul className="sec-checks"><li className="ok">Passwords and sessions are checked on the server for every request</li><li className="ok">Sessions can be revoked, and expire when idle</li><li className="ok">Cross-site requests are blocked; failed logins are throttled</li><li className={twoFactor ? "ok" : "warn"}>{twoFactor ? "2-step verification is ON" : "2-step verification is OFF. Turn it on below (strongly recommended)"}</li></ul></section>
+    <section className="panel sec-card sec-hero"><div><p className="eyebrow">PRIVATE PORTAL</p><h2>Security centre</h2><p>This portal is for you only. Nobody can register; outsiders receive only the specific public form or limited shared data you choose to send them.</p></div>
+      <ul className="sec-checks"><li className="ok">Passwords and sessions are checked on the server for every request</li><li className="ok">Sessions can be revoked, and expire when idle</li><li className="ok">Cross-site requests are blocked; failed logins are throttled</li><li className="ok">Business records are kept in MongoDB, not browser local storage</li><li className="ok">Logout clears app state, browser cache/storage and other open tabs</li><li className="ok">Sensitive dashboard and API responses disable browser caching</li><li className={twoFactor ? "ok" : "warn"}>{twoFactor ? "2-step verification is ON" : "2-step verification is OFF. Turn it on below (strongly recommended)"}</li></ul></section>
+    <p className="rm-note">Shared-device reminder: downloaded exports, screenshots, clipboard history and browser-saved passwords are outside the website's control. Delete downloaded files and do not save credentials when using someone else's computer.</p>
 
     <div className="sec-grid">
       <section className="panel sec-card"><h3>2-step verification (authenticator app)</h3>
@@ -70,8 +71,8 @@ export default function SecurityPanel({ twoFactor, autoLockMinutes, onAutoLock, 
 
       <section className="panel sec-card"><h3>Auto-lock &amp; backup</h3>
         <label className="field-wrap"><span>Sign out automatically after no activity for</span><select value={autoLockMinutes} onChange={(e) => onAutoLock(Number(e.target.value))}><option value={5}>5 minutes</option><option value={15}>15 minutes</option><option value={30}>30 minutes</option><option value={60}>1 hour</option><option value={0}>Never (not recommended)</option></select></label>
-        <p className="rm-note">The server also ends sessions that stay idle (default 12 hours, set by <code>ADMIN_IDLE_MINUTES</code>).</p>
-        <div className="sec-backup"><a className="primary-button" href="/api/backup">Download full backup (JSON)</a><p className="rm-note">Contacts, projects, rates and settings. It contains private data, so store it safely. Do it after big changes.</p></div>
+        <p className="rm-note">This preference is saved in MongoDB, not in this browser, so it follows you across devices. The server also expires idle sessions after <code>ADMIN_IDLE_MINUTES</code> (default 60 minutes) and absolute sessions after <code>ADMIN_SESSION_HOURS</code> (default 24 hours). Existing Vercel values override these defaults. Choose 5–15 minutes on shared computers; “Never” disables only the browser timer and is not recommended.</p>
+        <div className="sec-backup"><a className="primary-button" href="/api/backup">Download full backup (JSON)</a><p className="rm-note">Includes contacts, projects, rates, links metadata, tasks and private notes. It contains sensitive data, so store it safely and delete the downloaded copy from shared computers.</p></div>
       </section>
     </div>
 

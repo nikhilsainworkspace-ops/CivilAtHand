@@ -31,14 +31,44 @@ const nextConfig: NextConfig = {
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
           { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+          { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
+          { key: "X-DNS-Prefetch-Control", value: "off" },
+          { key: "X-Permitted-Cross-Domain-Policies", value: "none" },
+          { key: "Origin-Agent-Cluster", value: "?1" },
           { key: "Content-Security-Policy", value: csp },
         ],
       },
-      // Shared client links: never cached, never indexed, and the secret link is never sent on as a referrer.
+      // The admin shell and every API response are personalized or may carry sensitive records.
+      // Do not let a shared device's HTTP cache serve them after sign-out.
+      {
+        source: "/",
+        headers: [
+          { key: "Cache-Control", value: "no-store, no-cache, max-age=0, must-revalidate" },
+          { key: "Pragma", value: "no-cache" },
+          { key: "Expires", value: "0" },
+        ],
+      },
+      {
+        source: "/api/:path*",
+        headers: [
+          { key: "Cache-Control", value: "no-store, no-cache, max-age=0, must-revalidate" },
+          { key: "Pragma", value: "no-cache" },
+          { key: "Expires", value: "0" },
+        ],
+      },
+      // Tokenised pages contain private form/share payloads and should never be cached or indexed.
+      {
+        source: "/join/:path*",
+        headers: [
+          { key: "Cache-Control", value: "no-store, no-cache, max-age=0, must-revalidate" },
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+        ],
+      },
       {
         source: "/shared/:path*",
         headers: [
-          { key: "Cache-Control", value: "no-store" },
+          { key: "Cache-Control", value: "no-store, no-cache, max-age=0, must-revalidate" },
           { key: "X-Robots-Tag", value: "noindex, nofollow" },
           { key: "Referrer-Policy", value: "no-referrer" },
         ],

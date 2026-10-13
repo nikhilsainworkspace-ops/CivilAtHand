@@ -55,9 +55,9 @@ npm run build
 - In Settings, use Test connection and confirm the expected MongoDB database status.
 
 ## Data and configuration
-- No new environment variables or database migration are needed for Tasks, Private Notes or the navigation enhancements.
-- MongoDB creates the `tasks` and `privatenotes` collections when the application first writes data.
-- Keep `MONGODB_URI`, optional `MONGODB_DB`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`, and your existing TOTP secret configured as intended. Keep server secrets out of source control and away from `NEXT_PUBLIC_*` variables.
+- No new environment variables or database migration are needed for Tasks, Private Notes, navigation, or the browser-storage hardening.
+- MongoDB creates the `tasks`, `privatenotes` and `adminpreferences` collections when the application first writes corresponding data. Auto-lock preferences now persist in `adminpreferences`; they are no longer stored in localStorage.
+- Keep `MONGODB_URI`, optional `MONGODB_DB`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`, and your existing TOTP secret configured as intended. Keep server secrets out of source control and away from `NEXT_PUBLIC_*` variables. For stronger session defaults, set `ADMIN_IDLE_MINUTES=60` and `ADMIN_SESSION_HOURS=24` in Vercel if old overrides currently specify longer values.
 - Back up sensitive data before replacing a production deployment and test with dummy records first.
 
 ## Existing feature preservation
@@ -65,3 +65,11 @@ The sidebar retains Overview, Follow-ups, Task Planner, Private Notes, Contact D
 
 ## Verification note
 Syntax checks and ZIP integrity can be run without installing the project dependencies. A complete production readiness claim requires the four commands above to pass and a successful Vercel deployment. In this generation environment the package install timed out, so do not skip the project-side verification.
+
+
+### Shared-device and logout validation (added)
+- Open the portal in a private/incognito window, sign in, and verify contact records load from MongoDB. Do not rely on a local browser copy; the protected APIs must return 401 after logout.
+- Change the auto-lock setting, sign out, reopen the portal on a second device/browser, and confirm the preference follows because it is stored in MongoDB.
+- Sign in in two tabs, log out in one, and confirm the other tab clears its workspace. Then test remote revocation from Security → Signed-in devices; an open tab should clear on the next periodic/visibility session check. While actively typing or working in client-side forms, user interactions send a throttled, protected heartbeat so a legitimate active session does not expire mid-edit.
+- After logout, use Back/Forward and refresh. The login screen should show, and protected APIs must not return data. Confirm `/` and `/api/*` responses include no-store cache headers in browser DevTools.
+- Important limits: web code cannot delete downloads, screenshots, clipboard history, password-manager entries, extensions' data, or operating-system/browser backups. Do not leave exported private files on shared computers. The logout `Clear-Site-Data` header clears browser cache/storage for this website's origin; use a dedicated origin if unrelated apps share it.

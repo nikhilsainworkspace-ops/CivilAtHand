@@ -21,3 +21,21 @@ export function dateTime(value?: string | null): string {
 export async function copyToClipboard(text: string): Promise<boolean> {
   try { await navigator.clipboard.writeText(text); return true; } catch { return false; }
 }
+
+/** Clear app-owned browser storage after logout. Persistent business records belong in MongoDB, not here. */
+export function clearBrowserAppState(): void {
+  if (typeof window === "undefined") return;
+  const clearPrefixed = (storage: Storage) => {
+    for (let index = storage.length - 1; index >= 0; index -= 1) {
+      const key = storage.key(index);
+      if (key && (key.startsWith("cah-") || key.startsWith("civil-at-hand-"))) storage.removeItem(key);
+    }
+  };
+  try { clearPrefixed(window.localStorage); } catch { /* Storage can be disabled by browser policy. */ }
+  try { clearPrefixed(window.sessionStorage); } catch { /* Storage can be disabled by browser policy. */ }
+  try {
+    if ("caches" in window) {
+      void window.caches.keys().then((keys) => Promise.all(keys.filter((key) => key.startsWith("cah-") || key.startsWith("civil-at-hand-")).map((key) => window.caches.delete(key)))).catch(() => undefined);
+    }
+  } catch { /* Cache Storage is optional and not used for database records. */ }
+}

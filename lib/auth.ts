@@ -17,8 +17,9 @@ function envNumber(name: string, fallback: number, min: number, max: number) {
   const value = Number(process.env[name]);
   return Number.isFinite(value) && value >= min && value <= max ? value : fallback;
 }
-const sessionSeconds = () => envNumber("ADMIN_SESSION_HOURS", 24 * 7, 1, 24 * 30) * 3600;
-const idleMs = () => envNumber("ADMIN_IDLE_MINUTES", 720, 5, 60 * 24 * 30) * 60_000;
+// Conservative defaults: the browser auto-lock is shorter; server session expiry remains the final backstop.
+const sessionSeconds = () => envNumber("ADMIN_SESSION_HOURS", 24, 1, 24 * 30) * 3600;
+const idleMs = () => envNumber("ADMIN_IDLE_MINUTES", 60, 5, 60 * 24 * 30) * 60_000;
 
 export function authConfigured() {
   return Boolean(process.env.ADMIN_USERNAME && process.env.ADMIN_PASSWORD && secret().length >= 32);
@@ -36,9 +37,10 @@ function readCookieValue(raw?: string): string | null {
   return sid;
 }
 
-type SessionRow = { _id: unknown; lastSeenAt: Date };
+type SessionRow = { _id: unknown; lastSeenAt: Date; createdAt: Date; expiresAt: Date };
 
-export async function isAdmin(): Promise<boolean> {
+export async function isAdmin(options: { touch?: boolean } = {}): Promise<boolean> {
+  const touch = options.touch !== false;
   if (!authConfigured()) return false;
   try {
     const requestHeaders = await headers();
@@ -50,9 +52,19 @@ export async function isAdmin(): Promise<boolean> {
     const now = new Date();
     const session = (await AdminSession.findOne({ sidHash: hashSid(sid), revokedAt: null, expiresAt: { $gt: now } }).lean()) as unknown as SessionRow | null;
     if (!session) return false;
-    const idle = now.getTime() - new Date(session.lastSeenAt).getTime();
+    const nowMs = now.getTime();
+    const storedExpiry = new Date(session.expiresAt).getTime();
+    const createdAtMs = new Date(session.createdAt).getTime();
+    // Apply tightened settings to already-existing sessions too, rather than only new logins.
+    const effectiveExpiry = Number.isFinite(createdAtMs) ? Math.min(storedExpiry, createdAtMs + sessionSeconds() * 1000) : storedExpiry;
+    if (!Number.isFinite(effectiveExpiry) || effectiveExpiry <= nowMs) {
+      await AdminSession.updateOne({ _id: session._id }, { $set: { revokedAt: now } });
+      return false;
+    }
+    const idle = nowMs - new Date(session.lastSeenAt).getTime();
     if (idle > idleMs()) { await AdminSession.updateOne({ _id: session._id }, { $set: { revokedAt: now } }); return false; }
-    if (idle > 5 * 60_000) await AdminSession.updateOne({ _id: session._id }, { $set: { lastSeenAt: now } });
+    // Read-only session probes (e.g. the periodic browser recheck) must not keep an idle session alive.
+    if (touch && idle > 5 * 60_000) await AdminSession.updateOne({ _id: session._id }, { $set: { lastSeenAt: now } });
     return true;
   } catch (error) {
     console.error("Session check failed:", error);
@@ -81,11 +93,17 @@ export async function currentSessionHash(): Promise<string | null> {
   return sid ? hashSid(sid) : null;
 }
 
-export async function endSession() {
+export async function endSession(): Promise<boolean> {
+  let serverConfirmed = true;
   try {
     const hash = await currentSessionHash();
     if (hash) { await dbConnect(); await AdminSession.updateOne({ sidHash: hash }, { $set: { revokedAt: new Date() } }); }
-  } catch (error) { console.error("Session end failed:", error); }
+  } catch (error) {
+    serverConfirmed = false;
+    console.error("Session end failed:", error);
+  }
+  // Expire the browser cookie even when MongoDB is temporarily unavailable.
   const store = await cookies();
   store.set(COOKIE_NAME, "", { httpOnly: true, secure: IS_PROD, sameSite: "strict", path: "/", maxAge: 0 });
+  return serverConfirmed;
 }

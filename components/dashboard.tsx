@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type CSSProperties, type ReactNode } from "react";
 import { categories, contactStatuses, getFields, categoryLabel, type FormField } from "@/lib/categories";
+import { clearBrowserAppState } from "@/lib/client-api";
 import { brand } from "@/lib/brand";
 import { dateKey, type FollowUpItem } from "@/lib/followups";
 import { duplicateIdSet } from "@/lib/duplicates";
@@ -84,7 +85,7 @@ function LoginScreen({ configured, twoFactor, onLogin, toast, clearToast }: { co
       <section className="login-card"><div className="login-card-icon"><Icon name="lock" /></div><p className="eyebrow">ADMIN ACCESS</p><h2>Welcome back</h2><p className="login-subtitle">Sign in to open your private management panel.</p>
         {toast ? <div className={`toast toast-${toast.type}`} role="alert">{toast.message}<button onClick={clearToast} aria-label="Dismiss message">×</button></div> : null}
         {!configured ? <div className="config-warning"><strong>One-time setup required</strong><p>Add <code>ADMIN_USERNAME</code>, <code>ADMIN_PASSWORD</code>, and a unique 32+ character <code>ADMIN_SESSION_SECRET</code> in Vercel Environment Variables, along with MongoDB settings. See README.md.</p></div> : null}
-        <form onSubmit={submit} className="login-form"><label className="field-wrap"><span>Username</span><input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Your admin username" autoComplete="username" required /></label><label className="field-wrap"><span>Password</span><div className="password-wrap"><input value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Your password" type={showPassword ? "text" : "password"} autoComplete="current-password" required /><button className="show-password" type="button" onClick={() => setShowPassword(!showPassword)}>{showPassword ? "Hide" : "Show"}</button></div></label>{twoFactor ? <label className="field-wrap"><span>6-digit code from your authenticator app</span><input value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="123456" inputMode="numeric" autoComplete="one-time-code" maxLength={6} required /></label> : null}<button className="primary-button login-submit" type="submit" disabled={busy}>{busy ? "Signing in…" : "Unlock dashboard"}<Icon name="arrow" /></button></form>
+        <form onSubmit={submit} className="login-form" autoComplete="off"><label className="field-wrap"><span>Username</span><input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Your admin username" autoComplete="off" required /></label><label className="field-wrap"><span>Password</span><div className="password-wrap"><input value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Your password" type={showPassword ? "text" : "password"} autoComplete="off" required /><button className="show-password" type="button" onClick={() => setShowPassword(!showPassword)}>{showPassword ? "Hide" : "Show"}</button></div></label>{twoFactor ? <label className="field-wrap"><span>6-digit code from your authenticator app</span><input value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="123456" inputMode="numeric" autoComplete="off" maxLength={6} required /></label> : null}<button className="primary-button login-submit" type="submit" disabled={busy}>{busy ? "Signing in…" : "Unlock dashboard"}<Icon name="arrow" /></button></form>
         <div className="login-card-footer"><Icon name="lock" /><span>Private access · Server-checked session{twoFactor ? " · 2-step verification" : ""}</span></div>
       </section>
     </div>
@@ -170,22 +171,86 @@ export default function Dashboard() {
   const [privacy, setPrivacy] = useState(false);
   const [autoLock, setAutoLock] = useState(15);
   const lastActivity = useRef(Date.now());
-  useEffect(() => { try { const saved = window.localStorage.getItem("cah-autolock"); const value = Number(saved); if (saved !== null && [0, 5, 15, 30, 60].includes(value)) setAutoLock(value); } catch { /* storage blocked: keep the default */ } }, []);
+  const lastServerTouch = useRef(Date.now());
   useEffect(() => {
-    const onUnauthorized = () => { setNotes([]); setSession((current) => current && current.authenticated ? { ...current, authenticated: false } : current); };
+    const onUnauthorized = () => {
+      clearClientWorkspaceState();
+      clearBrowserAppState();
+      setSession((current) => current ? { ...current, authenticated: false } : current);
+    };
     window.addEventListener("cah-unauthorized", onUnauthorized);
     return () => window.removeEventListener("cah-unauthorized", onUnauthorized);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- the reset uses stable React setters only.
   useEffect(() => {
-    if (!session?.authenticated || autoLock === 0) return;
-    const mark = () => { lastActivity.current = Date.now(); };
+    if (!session?.authenticated) return;
+    let checking = false;
+    const checkSession = async () => {
+      if (checking) return;
+      checking = true;
+      try {
+        const response = await fetch("/api/auth/session", { cache: "no-store", credentials: "same-origin", headers: { "Cache-Control": "no-store" } });
+        const current = await response.json() as Session;
+        if (!current.authenticated) {
+          clearClientWorkspaceState();
+          clearBrowserAppState();
+          setSession(current);
+        }
+      } catch { /* A temporary network issue must not erase the current work view; each API still checks auth. */ }
+      finally { checking = false; }
+    };
+    const onVisible = () => { if (document.visibilityState === "visible") void checkSession(); };
+    const timer = window.setInterval(() => void checkSession(), 60_000);
+    window.addEventListener("pageshow", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("pageshow", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [session?.authenticated]); // eslint-disable-line react-hooks/exhaustive-deps -- the reset uses stable React setters only.
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return;
+    const channel = new BroadcastChannel("cah-session");
+    channel.addEventListener("message", (event: MessageEvent<{ type?: string }>) => {
+      if (event.data?.type === "logout") {
+        clearClientWorkspaceState();
+        clearBrowserAppState();
+        setSession((current) => current ? { ...current, authenticated: false } : current);
+      }
+    });
+    return () => channel.close();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- event handler uses stable React setters only.
+  useEffect(() => {
+    if (!session?.authenticated) return;
+    const mark = () => {
+      const now = Date.now();
+      lastActivity.current = now;
+      // Only genuine page interaction sends a throttled heartbeat. The periodic status probe does not keep
+      // an unattended session alive, but someone actively working in client-side forms does not expire mid-edit.
+      if (now - lastServerTouch.current > 4 * 60_000) {
+        lastServerTouch.current = now;
+        void fetch("/api/auth/activity", { method: "POST", cache: "no-store", credentials: "same-origin" })
+          .then((response) => { if (response.status === 401) window.dispatchEvent(new Event("cah-unauthorized")); })
+          .catch(() => undefined);
+      }
+    };
     const events = ["mousemove", "keydown", "click", "touchstart", "scroll"];
     events.forEach((name) => window.addEventListener(name, mark, { passive: true }));
     lastActivity.current = Date.now();
-    const timer = window.setInterval(() => {
-      if (Date.now() - (lastActivity.current ?? 0) > autoLock * 60_000) { window.clearInterval(timer); void logout().then(() => setToast({ type: "info", message: "Signed out automatically after a period of inactivity." })); }
-    }, 15_000);
-    return () => { window.clearInterval(timer); events.forEach((name) => window.removeEventListener(name, mark)); };
+    lastServerTouch.current = Date.now();
+    let timer: number | null = null;
+    if (autoLock !== 0) {
+      timer = window.setInterval(() => {
+        if (Date.now() - (lastActivity.current ?? 0) > autoLock * 60_000) {
+          if (timer !== null) window.clearInterval(timer);
+          void logout().then((confirmed) => { if (confirmed) setToast({ type: "info", message: "Signed out automatically after a period of inactivity." }); });
+        }
+      }, 15_000);
+    }
+    return () => {
+      if (timer !== null) window.clearInterval(timer);
+      events.forEach((name) => window.removeEventListener(name, mark));
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.authenticated, autoLock]);
   const [modalContact, setModalContact] = useState<ContactRecord | null | "new">(null);
@@ -193,29 +258,78 @@ export default function Dashboard() {
   const [search, setSearch] = useState(""); const [appliedSearch, setAppliedSearch] = useState(""); const [filterCategory, setFilterCategory] = useState(""); const [filterStatus, setFilterStatus] = useState("");
   const [globalSearch, setGlobalSearch] = useState(""); const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
 
+  function clearClientWorkspaceState() {
+    setContacts([]); setLinks([]); setHealth(null); setBusy(false); setImporting(false); setSaving(false);
+    setProjects([]); setTasks([]); setNotes([]); setFocusedTaskId(null); setFocusedNoteId(null);
+    setModalProject(null); setSavingProject(false); setOnlyDuplicates(false); setRooms([]); setRates([]);
+    setRoomCreate(null); setSelectedIds([]); setMergeOpen(false); setPrivacy(false); setModalContact(null);
+    setLinkModal(false); setSearch(""); setAppliedSearch(""); setFilterCategory(""); setFilterStatus("");
+    setGlobalSearch(""); setGlobalSearchOpen(false); setNavFilter(""); setTab("overview"); setToast(null);
+    setAutoLock(15);
+    if (importInputRef.current) importInputRef.current.value = "";
+  }
+
   const notify = useCallback((message: string, type: Toast["type"] = "success") => setToast({ message, type }), []);
   const clearFocusedTask = useCallback(() => setFocusedTaskId(null), []);
   const clearFocusedNote = useCallback(() => setFocusedNoteId(null), []);
   const loadData = useCallback(async (showError = true) => {
     try {
-      const [contactData, linkData, projectData, roomData, rateData, healthData, taskData, noteData] = await Promise.all([
-        jsonRequest("/api/contacts?limit=5000"), jsonRequest("/api/links"), jsonRequest("/api/projects").catch(() => ({ projects: [] })), jsonRequest("/api/rooms").catch(() => ({ rooms: [] })), jsonRequest("/api/rates").catch(() => ({ rates: [] })), jsonRequest("/api/health").catch((error) => ({ database: "error", message: error.message })), jsonRequest("/api/tasks").catch(() => ({ tasks: [] })), jsonRequest("/api/notes"),
+      const [contactData, linkData, projectData, roomData, rateData, healthData, taskData, noteData, preferenceData] = await Promise.all([
+        jsonRequest("/api/contacts?limit=5000"), jsonRequest("/api/links"), jsonRequest("/api/projects").catch(() => ({ projects: [] })), jsonRequest("/api/rooms").catch(() => ({ rooms: [] })), jsonRequest("/api/rates").catch(() => ({ rates: [] })), jsonRequest("/api/health").catch((error) => ({ database: "error", message: error.message })), jsonRequest("/api/tasks").catch(() => ({ tasks: [] })), jsonRequest("/api/notes"), jsonRequest("/api/security/preferences").catch(() => ({ autoLockMinutes: 15 })),
       ]);
       setContacts(contactData.contacts || []); setLinks(linkData.links || []); setProjects(projectData.projects || []); setRooms(roomData.rooms || []); setRates(rateData.rates || []); setHealth(healthData); setTasks(taskData.tasks || []); setNotes(noteData.notes || []);
+      const storedAutoLock = Number(preferenceData.autoLockMinutes);
+      setAutoLock([0, 5, 15, 30, 60].includes(storedAutoLock) ? storedAutoLock : 15);
     } catch (error) { if (showError) notify(error instanceof Error ? error.message : "Could not load the dashboard.", "error"); }
   }, [notify]);
 
   useEffect(() => {
     let active = true;
-    fetch("/api/auth/session", { cache: "no-store" }).then((res) => res.json()).then((data: Session) => { if (active) { setSession(data); if (data.authenticated) void loadData(); } }).catch(() => { if (active) setSession({ authenticated: false, configured: false, appName: brandName }); });
+    // Remove legacy app-prefixed storage from earlier builds before showing the workspace.
+    clearBrowserAppState();
+    fetch("/api/auth/session", { cache: "no-store", credentials: "same-origin", headers: { "Cache-Control": "no-store" } }).then((res) => res.json()).then((data: Session) => { if (active) { setSession(data); if (data.authenticated) void loadData(); } }).catch(() => { if (active) { clearClientWorkspaceState(); setSession({ authenticated: false, configured: false, appName: brandName }); } });
     return () => { active = false; };
   }, [loadData]);
 
   async function login(username: string, password: string, code: string) {
-    try { await jsonRequest("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password, code }) }); lastActivity.current = Date.now(); setSession((current) => ({ authenticated: true, configured: true, appName: brandName, twoFactor: current?.twoFactor })); setToast(null); setTab("overview"); await loadData(); }
-    catch (error) { notify(error instanceof Error ? error.message : "Could not sign in.", "error"); throw error; }
+    try {
+      await jsonRequest("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password, code }) });
+      const freshSession = await jsonRequest("/api/auth/session") as Session;
+      lastActivity.current = Date.now();
+      lastServerTouch.current = Date.now();
+      setSession(freshSession);
+      setToast(null); setTab("overview");
+      await loadData();
+    } catch (error) { notify(error instanceof Error ? error.message : "Could not sign in.", "error"); throw error; }
   }
-  async function logout() { try { await jsonRequest("/api/auth/logout", { method: "POST" }); } finally { setSession((current) => current ? { ...current, authenticated: false } : current); setContacts([]); setLinks([]); setProjects([]); setRooms([]); setRates([]); setTasks([]); setNotes([]); setSelectedIds([]); setRoomCreate(null); setMergeOpen(false); setToast(null); } }
+  async function saveAutoLockPreference(minutes: number) {
+    const previous = autoLock;
+    setAutoLock(minutes);
+    try {
+      await jsonRequest("/api/security/preferences", { method: "PATCH", body: JSON.stringify({ autoLockMinutes: minutes }) });
+      notify("Auto-lock preference saved to your database.");
+    } catch (error) {
+      setAutoLock(previous);
+      notify(error instanceof Error ? error.message : "Could not save the auto-lock preference.", "error");
+    }
+  }
+  async function logout(): Promise<boolean> {
+    let serverConfirmed = false;
+    let warning = "";
+    try {
+      await jsonRequest("/api/auth/logout", { method: "POST" });
+      serverConfirmed = true;
+    } catch {
+      warning = "This browser's workspace has been cleared, but the server did not confirm sign-out. Reconnect and sign out again before leaving this device.";
+    } finally {
+      clearClientWorkspaceState();
+      clearBrowserAppState();
+      setSession((current) => current ? { ...current, authenticated: false } : current);
+      try { const channel = new BroadcastChannel("cah-session"); channel.postMessage({ type: "logout" }); channel.close(); } catch { /* BroadcastChannel is optional. */ }
+    }
+    if (warning) setToast({ type: "error", message: warning });
+    return serverConfirmed;
+  }
 
   async function saveContact(payload: Record<string, unknown>) {
     setSaving(true);
@@ -568,7 +682,7 @@ export default function Dashboard() {
         {tab === "rates" ? <RatesPanel rates={rates} contacts={contacts} onChanged={() => loadData(false)} notify={notify} /> : null}
         {tab === "rooms" ? <RoomsPanel rooms={rooms} contacts={contacts} rates={rates} creating={roomCreate} onCloseCreate={() => setRoomCreate(null)} onChanged={() => loadData(false)} notify={notify} ownerName={brandName} /> : null}
         {mergeOpen ? <MergeModal contacts={contacts} onClose={() => setMergeOpen(false)} onDone={() => loadData(false)} notify={notify} /> : null}
-        {tab === "security" ? <SecurityPanel twoFactor={Boolean(session.twoFactor)} autoLockMinutes={autoLock} onAutoLock={(minutes) => { setAutoLock(minutes); try { window.localStorage.setItem("cah-autolock", String(minutes)); } catch { /* ignore */ } }} notify={notify} /> : null}
+        {tab === "security" ? <SecurityPanel twoFactor={Boolean(session.twoFactor)} autoLockMinutes={autoLock} onAutoLock={(minutes) => { void saveAutoLockPreference(minutes); }} notify={notify} /> : null}
         {tab === "reports" ? <ReportsPanel contacts={contacts} projects={projects} links={links} rooms={rooms} duplicateCount={duplicateIds.size} /> : null}
 
         {tab === "links" ? <div className="links-view"><div className="link-howto"><div className="howto-badge"><Icon name="links" /></div><div><h2>Collect details without giving dashboard access</h2><p>Make a separate form for each kind of contact. Share the link on WhatsApp, email or anywhere else. People can submit without a password; only you can view the saved records.</p></div><div className="howto-steps"><span><b>1</b> Create link</span><span><b>2</b> Share it</span><span><b>3</b> Review entries</span></div></div>
