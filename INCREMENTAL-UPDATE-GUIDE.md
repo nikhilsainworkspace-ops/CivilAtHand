@@ -1,38 +1,67 @@
-# Incremental update — Dashboard UI refresh, global search, Task Planner, Private Notes + security hardening
+# Civil At Hand — incremental update and launch guide
 
-## This ZIP is not the complete app
-Only new and modified files are included. Do not delete or replace any other project files. The README in this patch preserves the existing portal documentation and adds a detailed operating manual plus the dashboard redesign guide.
+## Important: this is not the entire project
+The ZIP contains only files that are new or updated relative to the original uploaded project. Keep all other project files. Do not delete files just because they are not listed in the patch.
 
 ## Safe merge
-1. Download and unzip this patch.
-2. Copy its files into the existing repository root, keeping the folder paths as shown. Allow overwriting only when a file with the same path exists.
-3. Review `README.md`, `UPDATES.md`, and this guide. `.env.example` is a template only; it is not your live configuration.
-4. Run `npm install` only if your lockfile/dependencies require it, then run `npm run typecheck`, `npm test`, `npm run lint`, and `npm run build` locally.
-5. Commit and push the updates to the same GitHub repository connected to your existing Vercel project. Confirm the Vercel Root Directory still contains the same `package.json`.
-6. Check the deployment logs and test existing login, authenticator login, contacts, projects, rates, links, shared databases, export/import, reports and security screens. Then create a small test task, edit it, mark it complete, reopen it, and delete it. Test Private Notes by creating a note with a tag, refreshing, editing, pinning, archiving, restoring, exporting Markdown, and deleting the test note. Finally test global search with one known contact, project, task and private-note title. Verify that contact/project results open their edit forms and task/note results open the corresponding editor.
+1. Make a backup of your repository or create a Git commit before applying the patch.
+2. Download and unzip this patch.
+3. Copy its contents into your current repository root, preserving directory paths. Allow overwrite only for matching files.
+4. Review `PATCH-MANIFEST.md`, `NAVIGATION-ACCESSIBILITY-UPDATE.md`, `README.md`, and `UPDATES.md`.
+5. Keep the existing Vercel variables and MongoDB configuration; do not replace secrets with the placeholder values in `.env.example`.
+6. From the project root, run:
 
-## Dashboard UI refresh
-- The update changes the dashboard visual layout and global search in `components/dashboard.tsx` and `app/globals.css`; it does not delete existing modules or API actions.
-- The default brand accent in `lib/brand.ts` changes to blue `#1769e8`. An explicit Vercel `NEXT_PUBLIC_BRAND_COLOR` continues to override the default.
-- The global search reads data already loaded into the authenticated dashboard. It does not create a new endpoint or expose results to public users.
-- Existing overview content (network categories, updated contacts, follow-up reminders, projects and work-queue summaries) is still available after the new task/notes overview cards.
+```bash
+npm run typecheck
+npm test
+npm run lint
+npm run build
+```
+
+7. Fix any reported errors before pushing. Push to the same GitHub repository connected to Vercel and verify the production deployment logs.
+
+## Verify the portal after deployment
+
+### Navigation and visual layout
+- On a short desktop screen, scroll the sidebar and confirm every panel including Security and Settings can be opened.
+- Test `Find a panel` using `notes`, `rate`, `report`, and a query with no matches.
+- On a phone, swipe the horizontal navigation strip and use its beginning/end arrow controls.
+- Check that the active panel comes into view and that the existing dark sidebar/blue active state remains consistent.
+
+### Sign-in and security
+- Keep an existing trusted session open until you have confirmed the authenticator works.
+- Test both normal credentials and the current six-digit code in a private window.
+- Confirm the authenticator setup secret is stored only in the server environment variable `ADMIN_TOTP_SECRET`, never under a `NEXT_PUBLIC_` name.
+- Check automatic lock, signed-in sessions and the activity log. Keep a safe recovery path for the authenticator.
+
+### Contacts and projects
+- Create and edit a test contact; search it; check duplicate warnings, filters, multi-select/bulk actions, import/export and CSV/XLSX as available in the original project.
+- Create and edit a test project/lead, change its status, and check links to contacts.
+
+### Follow-ups and Task Planner
+- Add a test task with a due date, priority and description; edit it, complete it, reopen it if supported, search it and delete it.
+- Confirm overdue counts only include tasks that are not complete or cancelled.
+- Confirm the task remains after a refresh.
+
+### Private Notes
+- Create a note, add tags, save, refresh, edit and save it again.
+- Test search, pin/unpin, archive/restore, Markdown export, clipboard copy and confirmed permanent deletion.
+- Confirm note contents are not written to the activity-log messages. Do not store passwords, authenticator keys, API secrets or payment-card data in notes.
+
+### Other panels and records
+- Check Rate Book, Shared Databases, Reports, Public Form Links, Security and Settings one by one.
+- Test a share link in a signed-out/private window; it must open only the public form or specifically shared content, never the admin dashboard or private notes.
+- Use a full JSON backup and verify it includes the new task and private notes data. Backups contain sensitive content and must be stored securely; the current patch does not supply a separate one-click restore screen.
+- In Settings, use Test connection and confirm the expected MongoDB database status.
 
 ## Data and configuration
-- No MongoDB migration is required. MongoDB creates the `tasks` and `privatenotes` collections on their first write.
-- No new environment variables are required for the Task Planner or Private Notes.
-- Keep `MONGODB_URI`, `MONGODB_DB` (if set), `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and `ADMIN_SESSION_SECRET` unchanged unless you intentionally want to change the existing deployment configuration.
-- Do not add secrets to `NEXT_PUBLIC_*` variables, commit `.env.local`, or share your authenticator key.
-- The TOTP fix makes the code's single-use claim atomic for requests that reach the same MongoDB database. Do not treat it as a substitute for testing your deployment and maintaining a recovery method.
+- No new environment variables or database migration are needed for Tasks, Private Notes or the navigation enhancements.
+- MongoDB creates the `tasks` and `privatenotes` collections when the application first writes data.
+- Keep `MONGODB_URI`, optional `MONGODB_DB`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`, and your existing TOTP secret configured as intended. Keep server secrets out of source control and away from `NEXT_PUBLIC_*` variables.
+- Back up sensitive data before replacing a production deployment and test with dummy records first.
 
-## Private Notes behavior
-- Notes are in a separate MongoDB collection from each contact's `notes` field. Create/edit requires pressing Save; autosave is not enabled.
-- Every note route checks the existing admin session. Responses are marked no-store. Notes are not included in public forms or shared-database views.
-- The panel supports title/body/tag search, pinning, archiving/restoring, clipboard copy, Markdown export and confirmed permanent deletion.
-- Full JSON backup now includes `tasks` and `privateNotes`. This means the file includes sensitive note bodies; store it securely. No one-click restore screen is supplied.
-- The application does not separately encrypt note bodies. Do not save passwords, authenticator keys, API secrets or payment-card details in notes.
+## Existing feature preservation
+The sidebar retains Overview, Follow-ups, Task Planner, Private Notes, Contact Database, Projects & Leads, Rate Book, Shared Databases, Reports, Public Form Links, Security and Settings. The navigation finder filters only those labels; it does not change records. The new menu scroll controls change only the visible scroll position.
 
-## Included paths
-The ZIP preserves directory paths and contains only new/modified files, not the full repository. It includes the prior incremental Task Planner/Private Notes/security patch together with the refreshed UI files. Merge over your existing repo; do not delete files that are not in this ZIP.
-
-## Validation status for this update
-The modified TypeScript/TSX files were syntax-transpiled with the globally available TypeScript compiler and reported no parse errors, and the ZIP archive integrity was checked. Installing the project dependencies timed out in the build environment, so a complete `npm run typecheck`, `npm test`, `npm run lint` and `npm run build` was not completed here. Run those checks after merging and do not treat the deployment as production-ready until they pass and the Vercel build logs are clean.
+## Verification note
+Syntax checks and ZIP integrity can be run without installing the project dependencies. A complete production readiness claim requires the four commands above to pass and a successful Vercel deployment. In this generation environment the package install timed out, so do not skip the project-side verification.

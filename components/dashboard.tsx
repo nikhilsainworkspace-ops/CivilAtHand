@@ -128,6 +128,24 @@ function LinkModal({ onClose, onCreate, busy }: { onClose: () => void; onCreate:
 export default function Dashboard() {
   const [session, setSession] = useState<Session | null>(null);
   const [tab, setTab] = useState<Tab>("overview");
+  const [navFilter, setNavFilter] = useState("");
+  const sidebarNavRef = useRef<HTMLElement | null>(null);
+  const sidebarNavItems: [Tab, string][] = [
+    ["overview", "Overview"], ["followups", "Follow-ups"], ["tasks", "Task planner"], ["notes", "Private notes"],
+    ["contacts", "Contact database"], ["projects", "Projects & leads"], ["rates", "Rate book"], ["rooms", "Shared databases"],
+    ["reports", "Reports"], ["links", "Public form links"], ["security", "Security"], ["settings", "Settings"],
+  ];
+  const visibleSidebarNavItems = sidebarNavItems.filter(([, label]) => label.toLowerCase().includes(navFilter.trim().toLowerCase()));
+  const scrollSidebarNav = (direction: -1 | 1) => {
+    const nav = sidebarNavRef.current;
+    if (!nav) return;
+    const horizontal = window.matchMedia("(max-width: 820px)").matches;
+    nav.scrollBy({ left: horizontal ? direction * 190 : 0, top: horizontal ? 0 : direction * 190, behavior: "smooth" });
+  };
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => sidebarNavRef.current?.querySelector<HTMLElement>(".nav-item-active")?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" }));
+    return () => window.cancelAnimationFrame(frame);
+  }, [tab, navFilter]);
   const [contacts, setContacts] = useState<ContactRecord[]>([]);
   const [links, setLinks] = useState<ShareLinkRecord[]>([]);
   const [health, setHealth] = useState<{ database: string; databaseName?: string; message?: string } | null>(null);
@@ -416,7 +434,18 @@ export default function Dashboard() {
   };
   return <main className={`app-shell ${privacy ? "privacy-on" : ""}`} style={{ "--brand": brandColor } as CSSProperties}>
     <aside className="sidebar"><div className="sidebar-brand"><BrandMark /><div className="brand-copy"><strong>{brandName}</strong><small>WORKSPACE</small></div></div>
-      <div className="sidebar-section-label">WORKSPACE</div><nav className="sidebar-nav" aria-label="Main navigation">{([ ["overview", "Overview"], ["followups", "Follow-ups"], ["tasks", "Task planner"], ["notes", "Private notes"], ["contacts", "Contact database"], ["projects", "Projects & leads"], ["rates", "Rate book"], ["rooms", "Shared databases"], ["reports", "Reports"], ["links", "Public form links"], ["security", "Security"], ["settings", "Settings"] ] as [Tab, string][]).map(([value, label]) => <button className={`nav-item ${tab === value ? "nav-item-active" : ""}`} key={value} onClick={() => setTab(value)}><Icon name={value === "rates" ? "database" : value === "rooms" ? "share" : value === "security" ? "lock" : value === "contacts" ? "contacts" : value === "links" ? "links" : value === "settings" ? "settings" : value === "followups" || value === "tasks" ? "calendar" : value === "notes" ? "note" : value === "projects" ? "briefcase" : value === "reports" ? "chart" : "overview"} /><span>{label}</span>{value === "contacts" && contacts.length > 0 ? <small>{contacts.length}</small> : value === "links" && links.length > 0 ? <small>{links.length}</small> : value === "projects" && projects.length > 0 ? <small>{projects.length}</small> : value === "rooms" && rooms.length > 0 ? <small>{rooms.length}</small> : value === "rates" && rates.length > 0 ? <small>{rates.length}</small> : value === "followups" && counts.followUps > 0 ? <small className="nav-alert">{counts.followUps}</small> : value === "tasks" && tasks.filter((task) => task.status !== "done" && task.status !== "cancelled" && task.dueAt && new Date(task.dueAt).getTime() < new Date(new Date().toDateString()).getTime()).length > 0 ? <small className="nav-alert">{tasks.filter((task) => task.status !== "done" && task.status !== "cancelled" && task.dueAt && new Date(task.dueAt).getTime() < new Date(new Date().toDateString()).getTime()).length}</small> : value === "notes" && notes.some((note) => !note.archived) ? <small>{notes.filter((note) => !note.archived).length}</small> : null}</button>)}</nav>
+      <div className="sidebar-section-label">WORKSPACE</div>
+      <div className="sidebar-nav-tools">
+        <label className="sidebar-nav-search"><Icon name="search" /><input type="search" value={navFilter} onChange={(event) => setNavFilter(event.target.value)} placeholder="Find a panel…" aria-label="Find a navigation panel" /></label>
+        <div className="sidebar-nav-scroll-controls" aria-label="Scroll navigation">
+          <button type="button" onClick={() => scrollSidebarNav(-1)} title="Scroll navigation toward the beginning" aria-label="Scroll navigation toward the beginning">↑</button>
+          <button type="button" onClick={() => scrollSidebarNav(1)} title="Scroll navigation toward the end" aria-label="Scroll navigation toward the end">↓</button>
+        </div>
+      </div>
+      <nav className="sidebar-nav" ref={sidebarNavRef} aria-label="Main navigation" tabIndex={0}>
+        {visibleSidebarNavItems.map(([value, label]) => <button className={`nav-item ${tab === value ? "nav-item-active" : ""}`} key={value} aria-current={tab === value ? "page" : undefined} onClick={() => { setTab(value); setNavFilter(""); }}><Icon name={value === "rates" ? "database" : value === "rooms" ? "share" : value === "security" ? "lock" : value === "contacts" ? "contacts" : value === "links" ? "links" : value === "settings" ? "settings" : value === "followups" || value === "tasks" ? "calendar" : value === "notes" ? "note" : value === "projects" ? "briefcase" : value === "reports" ? "chart" : "overview"} /><span>{label}</span>{value === "contacts" && contacts.length > 0 ? <small>{contacts.length}</small> : value === "links" && links.length > 0 ? <small>{links.length}</small> : value === "projects" && projects.length > 0 ? <small>{projects.length}</small> : value === "rooms" && rooms.length > 0 ? <small>{rooms.length}</small> : value === "rates" && rates.length > 0 ? <small>{rates.length}</small> : value === "followups" && counts.followUps > 0 ? <small className="nav-alert">{counts.followUps}</small> : value === "tasks" && overdueTaskCount > 0 ? <small className="nav-alert">{overdueTaskCount}</small> : value === "notes" && notes.some((note) => !note.archived) ? <small>{notes.filter((note) => !note.archived).length}</small> : null}</button>)}
+        {visibleSidebarNavItems.length === 0 ? <div className="sidebar-nav-empty">No panels match “{navFilter}”. <button type="button" onClick={() => setNavFilter("")}>Clear search</button></div> : null}
+      </nav>
       <div className="sidebar-spacer" /><div className="sidebar-tip"><span className="tip-spark">✳</span><strong>Keep it organised</strong><p>Save every useful relationship. Your next project may start here.</p><button onClick={() => { setTab("contacts"); setModalContact("new"); }}>+ Add a contact</button></div>
       <div className="sidebar-user"><span className="user-avatar">{initials(brandName)}</span><div><strong>Workspace admin</strong><small>Private access</small></div><button onClick={logout} title="Sign out" aria-label="Sign out"><Icon name="logout" /></button></div>
     </aside>

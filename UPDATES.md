@@ -76,3 +76,9 @@ Everything from version 1 still works (dashboard, login, contacts, 10 categories
 
 ## Needs no action
 No database migration. Environment variables are the same as before (see README); `MONGODB_DB` must stay as it was.
+
+## Navigation accessibility update — October 2026
+- The desktop sidebar menu now has its own vertical scroll area so the lower options stay reachable on short screens.
+- A **Find a panel** search filters navigation labels without touching records.
+- Beginning/end scroll controls work vertically on desktop and horizontally on tablet/mobile; the selected panel is scrolled into view when possible.
+- All existing panels remain in the menu; no environment variables, database migration or dependencies were added for this change.

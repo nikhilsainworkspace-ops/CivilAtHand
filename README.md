@@ -281,3 +281,11 @@ Reports summarise the data loaded from your database: contacts by category/statu
 6. Confirm the existing public link, project, rate book, reports and security screens still work before considering deployment complete.
 
 A successful source merge is not the same thing as a verified production build. Run `npm run typecheck`, `npm test`, `npm run lint` and `npm run build` with dependencies installed, and review Vercel's deployment logs before treating the release as production-ready.
+
+### 13. Navigation and finding panels quickly
+
+The sidebar now has a **Find a panel** search. Type part of a panel name such as `note`, `rate`, `security`, or `report` to filter the menu. Select the matching item to open it; the filter clears automatically. If no result appears, use **Clear search** or erase the text. The search filters navigation labels only—it never deletes, edits, or filters database records.
+
+The two arrow controls beside the panel finder scroll the navigation list. On desktop they move vertically through the menu; on tablets and phones they move the horizontal navigation strip. You can also scroll the sidebar with a mouse wheel, touch, or trackpad. The active panel is automatically brought into view when possible. Every existing panel remains available: Overview, Follow-ups, Task Planner, Private Notes, Contact Database, Projects & Leads, Rate Book, Shared Databases, Reports, Public Form Links, Security, and Settings.
+
+For very short desktop windows, scroll inside the sidebar menu rather than expecting every item to fit at once. On phones, swipe the navigation strip sideways or use its arrow controls. All primary sections remain in the same authenticated workspace; no extra environment variable or database change is needed for these navigation improvements.
