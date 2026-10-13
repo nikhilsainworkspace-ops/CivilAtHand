@@ -18,33 +18,6 @@ function clientKey(request: Request) {
   return createHash("sha256").update(`${ip}:${process.env.ADMIN_SESSION_SECRET || "civil-at-hand"}`).digest("hex");
 }
 
-function isDuplicateKeyError(error: unknown): boolean {
-  return typeof error === "object" && error !== null && "code" in error &&
-    (error as { code?: unknown }).code === 11000;
-}
-
-/** Atomically reserves a TOTP time step, so simultaneous requests cannot reuse the same code. */
-async function reserveTotpStep(step: number): Promise<boolean> {
-  const now = new Date();
-  try {
-    await LoginAttempt.updateOne(
-      { key: "totp:last" },
-      { $setOnInsert: { count: 0, windowStart: now, blockedUntil: null } },
-      { upsert: true },
-    );
-  } catch (error) {
-    // Two first-time requests may race to create the tracking row. The unique key means
-    // one wins; the other can continue to the atomic conditional update below.
-    if (!isDuplicateKeyError(error)) throw error;
-  }
-
-  const reserved = await LoginAttempt.updateOne(
-    { key: "totp:last", count: { $lt: step } },
-    { $set: { count: step } },
-  );
-  return reserved.modifiedCount === 1;
-}
-
 export async function POST(request: Request) {
   if (!authConfigured()) return NextResponse.json({ error: "Admin login is not configured. Set ADMIN_USERNAME, ADMIN_PASSWORD and a 32+ character ADMIN_SESSION_SECRET in environment variables." }, { status: 503 });
   // If you turned on 2FA but the secret is malformed, refuse to sign in rather than silently skipping 2FA.
@@ -71,9 +44,6 @@ export async function POST(request: Request) {
       codeOk = matched !== null;
       if (matched !== null) step = matched;
     }
-    // Only consume a code after the username and password are also correct. The database
-    // conditional update makes the one-use rule safe even if two sign-in requests race.
-    if (totpEnv && userOk && passOk && codeOk) codeOk = await reserveTotpStep(step);
     if (!(userOk && passOk && codeOk)) {
       const now = new Date();
       const oldWindow = !attempt?.windowStart || now.getTime() - new Date(attempt.windowStart).getTime() > 15 * 60 * 1000;
@@ -82,6 +52,36 @@ export async function POST(request: Request) {
       await audit(request, "login-failed", count >= 8 ? "Locked for 15 minutes" : "");
       const message = totpEnv ? "Username, password or 6-digit code is incorrect." : "Username or password is incorrect.";
       return NextResponse.json({ error: count >= 8 ? "Too many failed attempts. Please wait 15 minutes." : message }, { status: count >= 8 ? 429 : 401 });
+    }
+    if (totpEnv) {
+      // Atomically claim the accepted TOTP step after the password is valid.
+      // A read-then-write check can race when two requests arrive together.
+      const claimAt = new Date();
+      try {
+        await LoginAttempt.updateOne(
+          { key: "totp:last" },
+          { $setOnInsert: { count: -1, windowStart: claimAt, blockedUntil: null } },
+          { upsert: true },
+        );
+      } catch (error) {
+        // Parallel first-time logins can race to create this unique-key row. A
+        // duplicate-key error means the other request already created it.
+        const isDuplicateKey = typeof error === "object" && error !== null && "code" in error && error.code === 11000;
+        if (!isDuplicateKey) throw error;
+      }
+      const claimed = await LoginAttempt.findOneAndUpdate(
+        { key: "totp:last", count: { $lt: step } },
+        { $set: { count: step, windowStart: claimAt, blockedUntil: null } },
+        { new: true },
+      );
+      if (!claimed) {
+        const now = new Date();
+        const oldWindow = !attempt?.windowStart || now.getTime() - new Date(attempt.windowStart).getTime() > 15 * 60 * 1000;
+        const count = oldWindow ? 1 : Number(attempt?.count || 0) + 1;
+        await LoginAttempt.findOneAndUpdate({ key }, { $set: { count, windowStart: oldWindow ? now : attempt?.windowStart || now, blockedUntil: count >= 8 ? new Date(now.getTime() + 15 * 60 * 1000) : null } }, { upsert: true, new: true });
+        await audit(request, "login-failed", "Authenticator code already used");
+        return NextResponse.json({ error: count >= 8 ? "Too many failed attempts. Please wait 15 minutes." : "Username, password or 6-digit code is incorrect." }, { status: count >= 8 ? 429 : 401 });
+      }
     }
     await LoginAttempt.deleteOne({ key });
     await startSession(request);

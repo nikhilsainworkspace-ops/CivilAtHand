@@ -1,3 +1,18 @@
+# Civil At Hand: incremental productivity/security update
+
+This update is additive. It keeps existing contacts, projects, rates, links, shared databases, exports and security screens. Merge only the files contained in the incremental ZIP into the repository root; allow overwriting files with matching paths. No data migration or new environment variable is needed for the Task Planner.
+
+## Added
+- **Persistent Task Planner** (`Task` collection): create, edit, search and filter tasks; due dates, priority, status, notes, and optional links to existing contacts/projects; overdue-first sorting; completion/reopen controls; overdue badge, overview summary, CSV export and activity-log entries.
+- **Protected task APIs** (`/api/tasks` and `/api/tasks/[id]`): admin-only list/create/update/status/delete, validation, no-store responses and input limits. Existing endpoints are unchanged.
+- **Authenticator replay-race hardening:** the accepted TOTP time step is now atomically claimed after the password is valid, preventing two parallel login requests from both accepting the same code.
+- Added task input tests and added the missing `.gitignore` / `.env.example` entries expected by the README. `.env.example` contains placeholders only.
+
+## Verification
+Run `npm run typecheck`, `npm test`, `npm run lint`, and `npm run build` after merging. This ZIP is an incremental source patch, not a compiled deployment artifact.
+
+---
+
 # Civil At Hand: version 3.0 update notes
 
 Everything from version 2 still works. No data migration is needed: every new database field is optional, existing records and existing `/join/<token>` links are untouched, and `MONGODB_DB` handling is unchanged.

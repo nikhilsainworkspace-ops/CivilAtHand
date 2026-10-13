@@ -126,3 +126,26 @@ test("formatINR uses lakh / crore", () => {
   assert.equal(formatINR(45000), "₹45,000");
   assert.equal(formatINR(null), "—");
 });
+
+test("normalizeTaskInput validates and normalizes persistent task fields", async () => {
+  const { normalizeTaskInput } = await import("@/lib/tasks");
+  const task = normalizeTaskInput({
+    title: "  Send revised quotation  ",
+    description: "  Call the client first.  ",
+    status: "in-progress",
+    priority: "urgent",
+    dueAt: "2026-11-01",
+    relatedKind: "contact",
+    relatedId: "507f1f77bcf86cd799439011",
+  });
+  assert.equal(task.title, "Send revised quotation");
+  assert.equal(task.description, "Call the client first.");
+  assert.equal(task.status, "in-progress");
+  assert.equal(task.priority, "urgent");
+  assert.equal(task.dueAt?.toISOString().slice(0, 10), "2026-11-01");
+  assert.equal(task.relatedKind, "contact");
+  assert.throws(() => normalizeTaskInput({ title: "" }), /task title/);
+  assert.throws(() => normalizeTaskInput({ title: "Task", dueAt: "not-a-date" }), /valid due date/);
+  assert.throws(() => normalizeTaskInput({ title: "Task", relatedKind: "project", relatedId: "wrong-id" }), /valid related/);
+  assert.equal(normalizeTaskInput({ title: "Task", status: "not-a-status", priority: "not-a-priority" }).status, "todo");
+});

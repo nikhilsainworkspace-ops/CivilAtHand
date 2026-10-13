@@ -113,3 +113,29 @@ export type RoomRecord = {
   status: string; shareUrl: string; createdAt: string; accessLog?: { at: string; kind: string; ip: string; agent: string }[];
   columns?: { key: string; label: string }[]; preview?: Record<string, string>[];
 };
+
+
+export type TaskDoc = {
+  title: string;
+  description: string;
+  status: "todo" | "in-progress" | "done" | "cancelled";
+  priority: "low" | "normal" | "high" | "urgent";
+  dueAt: Date | null;
+  relatedKind: "none" | "contact" | "project";
+  relatedId: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type TaskRecord = {
+  _id: string;
+  title: string;
+  description: string;
+  status: "todo" | "in-progress" | "done" | "cancelled";
+  priority: "low" | "normal" | "high" | "urgent";
+  dueAt?: string | null;
+  relatedKind: "none" | "contact" | "project";
+  relatedId: string;
+  createdAt: string;
+  updatedAt: string;
+};

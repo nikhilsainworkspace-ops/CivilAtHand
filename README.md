@@ -11,6 +11,7 @@ Built with Next.js (App Router), MongoDB (Mongoose) and Vercel. One admin, no pu
 | **Contacts** | 10 civil categories with their own fields, add / edit / delete, search, filter by category and status, tags, notes, status, follow-up date |
 | **Duplicate detection** | Same phone (last 10 digits, so `+91 98765 43210` = `098765-43210`) or same email is caught when you add/edit a contact (you can still save anyway), flagged with a **Duplicate?** badge, and listed with the **Duplicates** filter. Import skips duplicates. |
 | **Follow-ups** | One list of everything overdue, due today, next 7 days and later, for contacts and projects. Call, WhatsApp, **Done**, **Tomorrow**, **+1 week**. A red counter shows on the menu. (In-app reminders only; nothing is emailed or pushed.) |
+| **Task planner** | Persistent tasks for site visits, quotations, document collection and operations. Due dates, priority, status, notes, links to a contact or project, overdue-first sorting, search, CSV export and completion tracking. |
 | **Projects & leads** | Lead → Quoted → Negotiation → Ongoing → Completed / On hold / Lost. Client, location, work type, estimated value (₹), dates, lead source, notes, linked contacts (suppliers, subcontractors, workers…), quick stage change, Excel/CSV export |
 | **Public forms** | Create a link per category, share by WhatsApp, optional expiry, pause / reactivate / delete. Labels are bilingual (`Name / नाम`). People see only their own form, never your data. |
 | **Import / export** | Import CSV or `.xlsx` (4 MB, 1,000 rows, bad rows reported). Export contacts (all, or the current filter) and projects as `.xlsx` or `.csv`. |
@@ -31,6 +32,7 @@ Vercel → your project → **Settings → Environment Variables**. Add them for
 | `ADMIN_USERNAME` | **Yes** | Your admin username |
 | `ADMIN_PASSWORD` | **Yes** | A long, unique password (not stored in the database) |
 | `ADMIN_SESSION_SECRET` | **Yes** | Random text, **32+ characters** (`openssl rand -hex 32`) |
+| `ADMIN_TOTP_SECRET` | Optional, recommended | Base32 secret generated from Security → Set up 2-step verification. Keep it private; do not use a `NEXT_PUBLIC_` name. |
 | `MONGODB_DB` | Only if you already use it | Database name. If you never set it, leave it out; the app uses the database named in `MONGODB_URI`. **Do not change it on an existing site**, or your records will seem to vanish. |
 | `NEXT_PUBLIC_SITE_URL` | Recommended | `https://your-domain.com` (no trailing slash). Public form links are built from it. |
 | `NEXT_PUBLIC_APP_NAME` | No | Business name (default `Civil At Hand`) |
@@ -39,7 +41,7 @@ Vercel → your project → **Settings → Environment Variables**. Add them for
 | `NEXT_PUBLIC_BRAND_LOGO_URL` | No | Blank = included logo. Or `/your-logo.png` (file in `public/`) or an `https://` URL |
 | `NEXT_PUBLIC_FAVICON_URL` | No | Blank = included favicon |
 
-Only the four required ones matter to get started. Never put secrets in variables starting with `NEXT_PUBLIC_`. See `.env.example`. For 2-step verification, set `ADMIN_TOTP_SECRET` to the Base32 setup key without spaces; do not rename it or give it the `NEXT_PUBLIC_` prefix. After saving environment changes, redeploy the Production deployment.
+Only the four required ones matter to get started. Never put secrets in variables starting with `NEXT_PUBLIC_`. See `.env.example`.
 
 ## Deploy (new GitHub repository)
 
@@ -68,7 +70,7 @@ npm run build                # what Vercel runs
 
 1. **Contact database → Add contact**, or **Public form links → Create link** and send the link on WhatsApp.
 2. New submissions appear as status **New**. Set a **Follow-up date** on anyone you need to call.
-3. **Follow-ups** shows who to contact today. **Projects & leads** tracks work from enquiry to completion. **Reports** summarises everything.
+3. **Follow-ups** shows who to contact today. **Task planner** tracks standalone actions and links them to contacts/projects. **Projects & leads** tracks work from enquiry to completion. **Reports** summarises everything.
 4. Back up: use **Export** now and then, and enable backups in MongoDB Atlas.
 
 Spreadsheet import needs `Name`, `Category` and a phone number or email. The easiest template is an export from this app.
@@ -101,6 +103,7 @@ Save material, labour, equipment and sub-contract rates with unit, supplier (lin
 - **Merge duplicates:** Duplicates filter → *Merge duplicates…*. Missing details, tags, notes and history are copied into the record you keep; projects and rates that pointed at the others are re-pointed.
 - **History per contact:** log calls, WhatsApp, meetings and site visits; "last contacted" is tracked. Plus a 1-5 star **rating** and a **Preferred / Avoid** flag.
 - **Project money:** billed and received per project, *To collect* tile and report.
+- **Task planner:** add operational tasks with priority, due date, notes and a related contact/project. Overdue tasks rise to the top; mark tasks complete or reopen them.
 - **Import template:** a blank Excel file with the right columns. **Full backup** (JSON) in Security.
 - **Hide numbers** button blurs phone numbers and emails while someone looks at your screen.
 
@@ -109,7 +112,7 @@ Save material, labour, equipment and sub-contract rates with unit, supplier (lin
 This is a private, single-admin portal. Nobody can register; the only outsiders who ever see anything are people holding a link you created.
 
 - **Server-checked sessions.** Signing in creates a session record in MongoDB (only a hash of its id). Sign-out really ends it, idle sessions expire (`ADMIN_IDLE_MINUTES`, default 12 h), sessions last at most `ADMIN_SESSION_HOURS` (default 7 days). **Security → Signed-in devices** lists them and can sign out any or all others. The cookie is HTTP-only, SameSite=Strict, `__Host-` prefixed and Secure in production. The browser also locks itself after 5-60 idle minutes (your choice).
-- **2-step verification (optional, recommended).** Security → *Set up 2-step verification* gives you a key for Google/Microsoft Authenticator or Authy; paste it into the server-only `ADMIN_TOTP_SECRET` variable (no spaces), save, and redeploy. Never name it `NEXT_PUBLIC_ADMIN_TOTP_SECRET`. Sign-in codes are single-use, including simultaneous requests. After changing the key, test a new sign-in in a private/incognito window; once it works, revoke other signed-in devices and sign out/in again on your current device. Existing sessions are not automatically invalidated just because this variable changes. If the variable is set but malformed, sign-in is refused rather than silently skipping 2FA. If you lose the phone and backup key, remove the variable in Vercel to recover access.
+- **2-step verification (optional, recommended).** Security → *Set up 2-step verification* gives you a key for Google/Microsoft Authenticator or Authy; paste it into `ADMIN_TOTP_SECRET` and redeploy. Codes are single-use. If the variable is set but malformed, sign-in is refused rather than silently skipping 2FA. Lost your phone? Delete the variable in Vercel.
 - **Cross-site request blocking:** admin APIs reject requests the browser marks cross-site, on top of SameSite cookies.
 - **Throttling:** failed logins (8 tries, then 15 minutes); public form submissions (20 per hour per device); client link requests; passcode attempts per link.
 - **Activity log:** sign-ins (and failures), deletions, bulk changes, merges, imports, exports, backups and every shared-link change are recorded for 180 days. No secrets are stored in it.
@@ -133,18 +136,18 @@ This is a private, single-admin portal. Nobody can register; the only outsiders 
 ## Project layout
 
 ```text
-app/api/auth|contacts|projects|links|public|export|import|health   server routes (all admin routes call isAdmin())
+app/api/auth|contacts|projects|tasks|links|public|export|import|health   server routes (all admin routes call isAdmin())
 app/join/[token]/        public form page
-components/              dashboard, follow-ups, projects, reports, public form
+components/              dashboard, follow-ups, task planner, projects, reports, public form
 lib/                     auth, brand, db, categories (form fields), duplicates, followups, projects, reports, csv, validation
-models/                  Contact, Project, ShareLink, LoginAttempt (Mongoose)
+models/                  Contact, Project, Task, ShareLink, LoginAttempt (Mongoose)
 tests/logic.test.ts      unit tests
 public/                  logo, icons, favicon
 ```
 
 ## Known limits
 
-- Reminders are shown inside the app; there are no email/SMS/push notifications.
+- Follow-ups and tasks are shown inside the app; there are no email/SMS/push notifications or scheduled background jobs.
 - Payments are recorded by you (no payment gateway). There is no file/photo storage, and no restore-from-backup button (use MongoDB Atlas backups for full restore; CSV import covers contacts).
 - One admin user. Up to 5,000 contacts are loaded into the dashboard at once; reports use the loaded records.
 - `.xls` (old Excel) is not imported; save as `.xlsx` or CSV.

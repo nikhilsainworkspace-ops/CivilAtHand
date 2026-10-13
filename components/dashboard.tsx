@@ -6,7 +6,7 @@ import { brand } from "@/lib/brand";
 import { dateKey, type FollowUpItem } from "@/lib/followups";
 import { duplicateIdSet } from "@/lib/duplicates";
 import { shortDate as dateOnly } from "@/lib/format";
-import type { ContactRecord, ProjectRecord, RateRecord, RoomRecord, ShareLinkRecord } from "@/lib/types";
+import type { ContactRecord, ProjectRecord, RateRecord, RoomRecord, ShareLinkRecord, TaskRecord } from "@/lib/types";
 import FollowUpsPanel from "@/components/followups-panel";
 import ProjectsPanel, { ProjectModal } from "@/components/projects-panel";
 import ReportsPanel from "@/components/reports-panel";
@@ -15,10 +15,11 @@ import RatesPanel from "@/components/rates-panel";
 import SecurityPanel from "@/components/security-panel";
 import MergeModal from "@/components/merge-modal";
 import InteractionLog from "@/components/interaction-log";
+import TasksPanel from "@/components/tasks-panel";
 
 type Session = { authenticated: boolean; configured: boolean; appName: string; twoFactor?: boolean };
 type Toast = { type: "success" | "error" | "info"; message: string };
-type Tab = "overview" | "followups" | "contacts" | "projects" | "rates" | "rooms" | "reports" | "links" | "security" | "settings";
+type Tab = "overview" | "followups" | "tasks" | "contacts" | "projects" | "rates" | "rooms" | "reports" | "links" | "security" | "settings";
 
 const brandName = brand.name;
 const brandTagline = brand.tagline;
@@ -128,6 +129,7 @@ export default function Dashboard() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
+  const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [modalProject, setModalProject] = useState<ProjectRecord | null | "new">(null);
   const [savingProject, setSavingProject] = useState(false);
   const [onlyDuplicates, setOnlyDuplicates] = useState(false);
@@ -164,10 +166,10 @@ export default function Dashboard() {
   const notify = useCallback((message: string, type: Toast["type"] = "success") => setToast({ message, type }), []);
   const loadData = useCallback(async (showError = true) => {
     try {
-      const [contactData, linkData, projectData, roomData, rateData, healthData] = await Promise.all([
-        jsonRequest("/api/contacts?limit=5000"), jsonRequest("/api/links"), jsonRequest("/api/projects").catch(() => ({ projects: [] })), jsonRequest("/api/rooms").catch(() => ({ rooms: [] })), jsonRequest("/api/rates").catch(() => ({ rates: [] })), jsonRequest("/api/health").catch((error) => ({ database: "error", message: error.message })),
+      const [contactData, linkData, projectData, roomData, rateData, healthData, taskData] = await Promise.all([
+        jsonRequest("/api/contacts?limit=5000"), jsonRequest("/api/links"), jsonRequest("/api/projects").catch(() => ({ projects: [] })), jsonRequest("/api/rooms").catch(() => ({ rooms: [] })), jsonRequest("/api/rates").catch(() => ({ rates: [] })), jsonRequest("/api/health").catch((error) => ({ database: "error", message: error.message })), jsonRequest("/api/tasks").catch(() => ({ tasks: [] })),
       ]);
-      setContacts(contactData.contacts || []); setLinks(linkData.links || []); setProjects(projectData.projects || []); setRooms(roomData.rooms || []); setRates(rateData.rates || []); setHealth(healthData);
+      setContacts(contactData.contacts || []); setLinks(linkData.links || []); setProjects(projectData.projects || []); setRooms(roomData.rooms || []); setRates(rateData.rates || []); setHealth(healthData); setTasks(taskData.tasks || []);
     } catch (error) { if (showError) notify(error instanceof Error ? error.message : "Could not load the dashboard.", "error"); }
   }, [notify]);
 
@@ -181,7 +183,7 @@ export default function Dashboard() {
     try { await jsonRequest("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password, code }) }); lastActivity.current = Date.now(); setSession((current) => ({ authenticated: true, configured: true, appName: brandName, twoFactor: current?.twoFactor })); setToast(null); setTab("overview"); await loadData(); }
     catch (error) { notify(error instanceof Error ? error.message : "Could not sign in.", "error"); throw error; }
   }
-  async function logout() { try { await jsonRequest("/api/auth/logout", { method: "POST" }); } finally { setSession((current) => current ? { ...current, authenticated: false } : current); setContacts([]); setLinks([]); setProjects([]); setRooms([]); setRates([]); setSelectedIds([]); setRoomCreate(null); setMergeOpen(false); setToast(null); } }
+  async function logout() { try { await jsonRequest("/api/auth/logout", { method: "POST" }); } finally { setSession((current) => current ? { ...current, authenticated: false } : current); setContacts([]); setLinks([]); setProjects([]); setRooms([]); setRates([]); setTasks([]); setSelectedIds([]); setRoomCreate(null); setMergeOpen(false); setToast(null); } }
 
   async function saveContact(payload: Record<string, unknown>) {
     setSaving(true);
@@ -345,6 +347,7 @@ export default function Dashboard() {
   const tabMeta: Record<Tab, { title: string; subtitle: string }> = {
     overview: { title: "Overview", subtitle: "A clear view of the people and resources in your network." },
     followups: { title: "Follow-ups", subtitle: "Who to call or message next. Overdue and upcoming reminders in one list." },
+    tasks: { title: "Task planner", subtitle: "Plan site work, quotations, document collection and business actions. Tasks stay saved in your database." },
     contacts: { title: "Contact database", subtitle: "Keep every supplier, contractor, partner and client in one place." },
     projects: { title: "Projects & leads", subtitle: "Track every enquiry from first contact to completed work." },
     rates: { title: "Rate book", subtitle: "Material, labour and equipment rates, and who quoted them." },
@@ -356,7 +359,7 @@ export default function Dashboard() {
   };
   return <main className={`app-shell ${privacy ? "privacy-on" : ""}`} style={{ "--brand": brandColor } as CSSProperties}>
     <aside className="sidebar"><div className="sidebar-brand"><BrandMark /><div className="brand-copy"><strong>{brandName}</strong><small>WORKSPACE</small></div></div>
-      <div className="sidebar-section-label">WORKSPACE</div><nav className="sidebar-nav" aria-label="Main navigation">{([ ["overview", "Overview"], ["followups", "Follow-ups"], ["contacts", "Contact database"], ["projects", "Projects & leads"], ["rates", "Rate book"], ["rooms", "Shared databases"], ["reports", "Reports"], ["links", "Public form links"], ["security", "Security"], ["settings", "Settings"] ] as [Tab, string][]).map(([value, label]) => <button className={`nav-item ${tab === value ? "nav-item-active" : ""}`} key={value} onClick={() => setTab(value)}><Icon name={value === "rates" ? "database" : value === "rooms" ? "share" : value === "security" ? "lock" : value === "contacts" ? "contacts" : value === "links" ? "links" : value === "settings" ? "settings" : value === "followups" ? "calendar" : value === "projects" ? "briefcase" : value === "reports" ? "chart" : "overview"} /><span>{label}</span>{value === "contacts" && contacts.length > 0 ? <small>{contacts.length}</small> : value === "links" && links.length > 0 ? <small>{links.length}</small> : value === "projects" && projects.length > 0 ? <small>{projects.length}</small> : value === "rooms" && rooms.length > 0 ? <small>{rooms.length}</small> : value === "rates" && rates.length > 0 ? <small>{rates.length}</small> : value === "followups" && counts.followUps > 0 ? <small className="nav-alert">{counts.followUps}</small> : null}</button>)}</nav>
+      <div className="sidebar-section-label">WORKSPACE</div><nav className="sidebar-nav" aria-label="Main navigation">{([ ["overview", "Overview"], ["followups", "Follow-ups"], ["tasks", "Task planner"], ["contacts", "Contact database"], ["projects", "Projects & leads"], ["rates", "Rate book"], ["rooms", "Shared databases"], ["reports", "Reports"], ["links", "Public form links"], ["security", "Security"], ["settings", "Settings"] ] as [Tab, string][]).map(([value, label]) => <button className={`nav-item ${tab === value ? "nav-item-active" : ""}`} key={value} onClick={() => setTab(value)}><Icon name={value === "rates" ? "database" : value === "rooms" ? "share" : value === "security" ? "lock" : value === "contacts" ? "contacts" : value === "links" ? "links" : value === "settings" ? "settings" : value === "followups" || value === "tasks" ? "calendar" : value === "projects" ? "briefcase" : value === "reports" ? "chart" : "overview"} /><span>{label}</span>{value === "contacts" && contacts.length > 0 ? <small>{contacts.length}</small> : value === "links" && links.length > 0 ? <small>{links.length}</small> : value === "projects" && projects.length > 0 ? <small>{projects.length}</small> : value === "rooms" && rooms.length > 0 ? <small>{rooms.length}</small> : value === "rates" && rates.length > 0 ? <small>{rates.length}</small> : value === "followups" && counts.followUps > 0 ? <small className="nav-alert">{counts.followUps}</small> : value === "tasks" && tasks.filter((task) => task.status !== "done" && task.status !== "cancelled" && task.dueAt && new Date(task.dueAt).getTime() < new Date(new Date().toDateString()).getTime()).length > 0 ? <small className="nav-alert">{tasks.filter((task) => task.status !== "done" && task.status !== "cancelled" && task.dueAt && new Date(task.dueAt).getTime() < new Date(new Date().toDateString()).getTime()).length}</small> : null}</button>)}</nav>
       <div className="sidebar-spacer" /><div className="sidebar-tip"><span className="tip-spark">✳</span><strong>Keep it organised</strong><p>Save every useful relationship. Your next project may start here.</p><button onClick={() => { setTab("contacts"); setModalContact("new"); }}>+ Add a contact</button></div>
       <div className="sidebar-user"><span className="user-avatar">{initials(brandName)}</span><div><strong>Workspace admin</strong><small>Private access</small></div><button onClick={logout} title="Sign out" aria-label="Sign out"><Icon name="logout" /></button></div>
     </aside>
@@ -373,6 +376,7 @@ export default function Dashboard() {
             <section className="panel recent-panel"><div className="panel-heading"><div><h2>Recently updated</h2><p>Your latest network activity.</p></div><button className="icon-button subtle" onClick={() => loadData()} aria-label="Refresh records">↻</button></div>{contacts.length ? <div className="recent-list">{contacts.slice(0, 6).map((contact) => <button className="recent-row" key={contact._id} onClick={() => { setTab("contacts"); setModalContact(contact); }}><span className={`contact-avatar avatar-${categories.findIndex((item) => item.id === contact.category) % 5}`}>{initials(contact.name)}</span><span className="recent-person"><strong>{contact.name}</strong><small>{contact.organization || categoryLabel(contact.category)}</small></span><span className="recent-meta"><StatusPill status={contact.status} /><small>{relativeDate(contact.updatedAt)}</small></span></button>)}<button className="recent-view-all" onClick={() => setTab("contacts")}>View all contacts <Icon name="arrow" /></button></div> : <div className="empty-state compact-empty"><span className="empty-icon"><Icon name="contacts" /></span><h3>Your network starts here</h3><p>Add your first contact manually or share a public form to collect details.</p><button className="secondary-button" onClick={() => { setTab("contacts"); setModalContact("new"); }}>Add first contact</button></div>}
             <div className="followup-card"><span className="followup-icon"><Icon name="calendar" /></span><div><strong>{counts.followUps ? `${counts.followUps} follow-up${counts.followUps > 1 ? "s" : ""} due or overdue` : "Stay ahead of follow-ups"}</strong><p>{counts.followUps ? "Open the Follow-ups list to call, message or reschedule." : "Set a follow-up date inside any contact or project."}</p></div><button onClick={() => setTab("followups")}>Review <span>→</span></button></div></section></div>
           <div className="ov-projects"><div><strong>Projects & leads</strong><p>{projects.filter((p) => ["lead", "quoted", "negotiation"].includes(p.status)).length} open leads · {projects.filter((p) => p.status === "ongoing").length} ongoing · {projects.length} total</p></div><button className="secondary-button" onClick={() => setTab("projects")}>Open projects</button><button className="primary-button" onClick={() => { setTab("projects"); setModalProject("new"); }}>Add lead</button></div>
+          <div className="task-overview-strip"><div className="task-overview-icon">✓</div><div className="task-overview-copy"><span>WORK QUEUE</span><strong>{tasks.filter((task) => task.status !== "done" && task.status !== "cancelled").length} open tasks to manage</strong><p>{tasks.filter((task) => task.status !== "done" && task.status !== "cancelled" && task.dueAt && new Date(task.dueAt).getTime() < new Date(new Date().toDateString()).getTime()).length ? `${tasks.filter((task) => task.status !== "done" && task.status !== "cancelled" && task.dueAt && new Date(task.dueAt).getTime() < new Date(new Date().toDateString()).getTime()).length} overdue · prioritise these first.` : "Track site visits, quotations, paperwork and client actions separately from follow-up reminders."}</p></div><button className="secondary-button" onClick={() => setTab("tasks")}>Open task planner <span>→</span></button></div>
           <div className="bottom-note"><span>✦</span><p><strong>Your data, your control.</strong> Contacts are stored in your MongoDB database. Public form links collect details but never expose your contact list.</p><button onClick={() => setTab("settings")}>Workspace details <span>→</span></button></div>
         </div> : null}
 
@@ -392,6 +396,7 @@ export default function Dashboard() {
 
         {toast && (tab === "projects" || tab === "followups") ? <div className={`toast page-toast toast-${toast.type}`} role="status">{toast.message}<button onClick={() => setToast(null)} aria-label="Dismiss">×</button></div> : null}
         {tab === "followups" ? <FollowUpsPanel contacts={contacts} projects={projects} onOpen={openFollowUp} onUpdate={updateFollowUp} onWhatsApp={openWhatsApp} /> : null}
+        {tab === "tasks" ? <TasksPanel tasks={tasks} contacts={contacts} projects={projects} onChanged={() => loadData(false)} notify={notify} /> : null}
         {tab === "projects" ? <ProjectsPanel projects={projects} contacts={contacts} onEdit={(project) => setModalProject(project)} onDelete={deleteProject} onStatus={changeProjectStatus} /> : null}
         {tab === "rates" ? <RatesPanel rates={rates} contacts={contacts} onChanged={() => loadData(false)} notify={notify} /> : null}
         {tab === "rooms" ? <RoomsPanel rooms={rooms} contacts={contacts} rates={rates} creating={roomCreate} onCloseCreate={() => setRoomCreate(null)} onChanged={() => loadData(false)} notify={notify} ownerName={brandName} /> : null}
