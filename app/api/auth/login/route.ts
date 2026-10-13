@@ -4,7 +4,7 @@ import { authConfigured, startSession } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { dbConnect } from "@/lib/db";
 import { clientIpFromHeaders } from "@/lib/security";
-import { isValidTotpSecret, totpStep, verifyTotp } from "@/lib/totp";
+import { isValidTotpSecret, verifyTotp } from "@/lib/totp";
 import { LoginAttempt } from "@/models/LoginAttempt";
 
 export const runtime = "nodejs";
@@ -16,6 +16,33 @@ function safeEqual(a: string, b: string) {
 function clientKey(request: Request) {
   const ip = clientIpFromHeaders((name) => request.headers.get(name));
   return createHash("sha256").update(`${ip}:${process.env.ADMIN_SESSION_SECRET || "civil-at-hand"}`).digest("hex");
+}
+
+function isDuplicateKeyError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error &&
+    (error as { code?: unknown }).code === 11000;
+}
+
+/** Atomically reserves a TOTP time step, so simultaneous requests cannot reuse the same code. */
+async function reserveTotpStep(step: number): Promise<boolean> {
+  const now = new Date();
+  try {
+    await LoginAttempt.updateOne(
+      { key: "totp:last" },
+      { $setOnInsert: { count: 0, windowStart: now, blockedUntil: null } },
+      { upsert: true },
+    );
+  } catch (error) {
+    // Two first-time requests may race to create the tracking row. The unique key means
+    // one wins; the other can continue to the atomic conditional update below.
+    if (!isDuplicateKeyError(error)) throw error;
+  }
+
+  const reserved = await LoginAttempt.updateOne(
+    { key: "totp:last", count: { $lt: step } },
+    { $set: { count: step } },
+  );
+  return reserved.modifiedCount === 1;
 }
 
 export async function POST(request: Request) {
@@ -41,13 +68,12 @@ export async function POST(request: Request) {
     let codeOk = true; let step = 0;
     if (totpEnv) {
       const matched = verifyTotp(totpEnv, code);
-      codeOk = false;
-      if (matched !== null) {
-        const last = (await LoginAttempt.findOne({ key: "totp:last" }).lean()) as unknown as { count?: number } | null;
-        step = matched;
-        codeOk = !(last && Number(last.count) >= matched); // a code can be used only once
-      }
+      codeOk = matched !== null;
+      if (matched !== null) step = matched;
     }
+    // Only consume a code after the username and password are also correct. The database
+    // conditional update makes the one-use rule safe even if two sign-in requests race.
+    if (totpEnv && userOk && passOk && codeOk) codeOk = await reserveTotpStep(step);
     if (!(userOk && passOk && codeOk)) {
       const now = new Date();
       const oldWindow = !attempt?.windowStart || now.getTime() - new Date(attempt.windowStart).getTime() > 15 * 60 * 1000;
@@ -57,7 +83,6 @@ export async function POST(request: Request) {
       const message = totpEnv ? "Username, password or 6-digit code is incorrect." : "Username or password is incorrect.";
       return NextResponse.json({ error: count >= 8 ? "Too many failed attempts. Please wait 15 minutes." : message }, { status: count >= 8 ? 429 : 401 });
     }
-    if (totpEnv) await LoginAttempt.findOneAndUpdate({ key: "totp:last" }, { $set: { count: Math.max(step, totpStep(Date.now())) } }, { upsert: true });
     await LoginAttempt.deleteOne({ key });
     await startSession(request);
     await audit(request, "login", totpEnv ? "with 2FA" : "");

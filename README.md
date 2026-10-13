@@ -39,7 +39,7 @@ Vercel → your project → **Settings → Environment Variables**. Add them for
 | `NEXT_PUBLIC_BRAND_LOGO_URL` | No | Blank = included logo. Or `/your-logo.png` (file in `public/`) or an `https://` URL |
 | `NEXT_PUBLIC_FAVICON_URL` | No | Blank = included favicon |
 
-Only the four required ones matter to get started. Never put secrets in variables starting with `NEXT_PUBLIC_`. See `.env.example`.
+Only the four required ones matter to get started. Never put secrets in variables starting with `NEXT_PUBLIC_`. See `.env.example`. For 2-step verification, set `ADMIN_TOTP_SECRET` to the Base32 setup key without spaces; do not rename it or give it the `NEXT_PUBLIC_` prefix. After saving environment changes, redeploy the Production deployment.
 
 ## Deploy (new GitHub repository)
 
@@ -109,7 +109,7 @@ Save material, labour, equipment and sub-contract rates with unit, supplier (lin
 This is a private, single-admin portal. Nobody can register; the only outsiders who ever see anything are people holding a link you created.
 
 - **Server-checked sessions.** Signing in creates a session record in MongoDB (only a hash of its id). Sign-out really ends it, idle sessions expire (`ADMIN_IDLE_MINUTES`, default 12 h), sessions last at most `ADMIN_SESSION_HOURS` (default 7 days). **Security → Signed-in devices** lists them and can sign out any or all others. The cookie is HTTP-only, SameSite=Strict, `__Host-` prefixed and Secure in production. The browser also locks itself after 5-60 idle minutes (your choice).
-- **2-step verification (optional, recommended).** Security → *Set up 2-step verification* gives you a key for Google/Microsoft Authenticator or Authy; paste it into `ADMIN_TOTP_SECRET` and redeploy. Codes are single-use. If the variable is set but malformed, sign-in is refused rather than silently skipping 2FA. Lost your phone? Delete the variable in Vercel.
+- **2-step verification (optional, recommended).** Security → *Set up 2-step verification* gives you a key for Google/Microsoft Authenticator or Authy; paste it into the server-only `ADMIN_TOTP_SECRET` variable (no spaces), save, and redeploy. Never name it `NEXT_PUBLIC_ADMIN_TOTP_SECRET`. Sign-in codes are single-use, including simultaneous requests. After changing the key, test a new sign-in in a private/incognito window; once it works, revoke other signed-in devices and sign out/in again on your current device. Existing sessions are not automatically invalidated just because this variable changes. If the variable is set but malformed, sign-in is refused rather than silently skipping 2FA. If you lose the phone and backup key, remove the variable in Vercel to recover access.
 - **Cross-site request blocking:** admin APIs reject requests the browser marks cross-site, on top of SameSite cookies.
 - **Throttling:** failed logins (8 tries, then 15 minutes); public form submissions (20 per hour per device); client link requests; passcode attempts per link.
 - **Activity log:** sign-ins (and failures), deletions, bulk changes, merges, imports, exports, backups and every shared-link change are recorded for 180 days. No secrets are stored in it.
