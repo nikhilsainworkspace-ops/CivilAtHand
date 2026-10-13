@@ -20,7 +20,14 @@ export const brand = {
 };
 
 export function getBaseUrl(requestUrl?: string) {
+  // Build share URLs from the host that actually served the admin request. A stale
+  // NEXT_PUBLIC_SITE_URL in Vercel should not silently create links to an old domain.
+  if (requestUrl) {
+    try {
+      const origin = new URL(requestUrl).origin;
+      if (origin && /^https?:\/\//i.test(origin)) return origin;
+    } catch { /* Fall back to the configured site URL below. */ }
+  }
   if (brand.siteUrl) return brand.siteUrl;
-  if (requestUrl) return new URL(requestUrl).origin;
   return "http://localhost:3000";
 }

@@ -112,6 +112,26 @@ test("a shared snapshot contains only chosen fields and never private data", () 
   assert.ok(snap.columns.some((c) => c.key.startsWith("d.")));
   assert.ok(!snap.columns.some((c) => c.key === "d.notes" || c.key === "d.fullName"));
 });
+test("shared snapshots include selected Google Contacts fields and mask all extra phone/email values", () => {
+  const contacts = [{
+    category: "general-contact", name: "Asha Rao", jobTitle: "Engineer", teamRole: "Team Lead", birthday: "1990-04-05",
+    organization: "Rao Build", phone: "+91 98765 43210", phoneLabel: "Mobile", phoneNumbers: [{ label: "Work", number: "01724442222" }],
+    email: "asha@example.com", emailAddresses: [{ label: "Home", value: "asha.home@example.com" }], tags: ["trusted", "north"],
+    city: "Chandigarh", state: "Punjab", details: { whatsapp: "9876543210", notes: "PRIVATE" }, notes: "PRIVATE", status: "qualified",
+  }];
+  const snap = buildContactSnapshot(contacts as never, ["name", "jobTitle", "teamRole", "phone", "additionalPhones", "email", "additionalEmails", "birthday", "tags"], false, false);
+  assert.equal(snap.rows[0].jobTitle, "Engineer");
+  assert.equal(snap.rows[0].teamRole, "Team Lead");
+  assert.equal(snap.rows[0].additionalPhones, "Work: 01724442222");
+  assert.equal(snap.rows[0].additionalEmails, "Home: asha.home@example.com");
+  assert.equal(snap.rows[0].birthday, "1990-04-05");
+  assert.equal(snap.rows[0].tags, "trusted, north");
+  assert.ok(!JSON.stringify(snap).includes("PRIVATE"));
+  const masked = buildContactSnapshot(contacts as never, ["phone", "additionalPhones", "email", "additionalEmails"], false, true);
+  assert.ok(!JSON.stringify(masked).includes("01724442222"));
+  assert.ok(!JSON.stringify(masked).includes("asha.home@example.com"));
+});
+
 test("preview mode masks phone and email", () => {
   const snap = buildContactSnapshot(sample as never, ["name", "phone", "email", "whatsapp"], false, true);
   assert.equal(snap.rows[0].phone, "98•••••210"); assert.equal(snap.rows[0].email, "ra••@example.com"); assert.ok(!JSON.stringify(snap).includes("9876543210"));

@@ -25,6 +25,10 @@ const common: FormField[] = [
 
 export const categories: Category[] = [
   {
+    id: "general-contact", label: "General Contact / Team Member", short: "General Contact", description: "A flexible Google Contacts-style record for people, staff and business relationships.",
+    fields: [field("relationshipType", "Relationship type / संबंध", "select", false, ["Team member", "Client", "Supplier", "Contractor", "Partner", "Consultant", "Other"])],
+  },
+  {
     id: "manpower-supplier", label: "Manpower Supplier", short: "Manpower", description: "Skilled labour, helpers and teams for construction sites.",
     fields: [field("workerTypes", "Workers you provide / कौन-कौन से कर्मचारी देते हैं?", "textarea", true, undefined, "Helpers, welders, electricians…"), field("teamSize", "Team capacity / कितने लोग दे सकते हैं?", "select", true, capacity), field("skillLevels", "Skills and trades / कौशल और काम", "textarea"), field("availability", "Availability / कब से उपलब्ध हैं?", "select", false, ["Immediately / तुरंत", "Within 7 days / 7 दिन में", "Within 15 days / 15 दिन में", "Discuss first / बातचीत के बाद"])],
   },

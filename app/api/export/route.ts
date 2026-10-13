@@ -16,10 +16,13 @@ export const maxDuration = 30;
 
 type Column = { key: string; header: string };
 const baseColumns: Column[] = [
-  { key: "name", header: "Name" }, { key: "categoryLabel", header: "Category" }, { key: "status", header: "Status" },
-  { key: "phone", header: "Phone" }, { key: "whatsapp", header: "WhatsApp" }, { key: "email", header: "Email" },
-  { key: "organization", header: "Business / Company" }, { key: "city", header: "City" }, { key: "state", header: "State" },
-  { key: "workingLocations", header: "Working / Delivery Locations" }, { key: "tags", header: "Tags" }, { key: "followUpAt", header: "Follow-up Date" },
+  { key: "name", header: "Name" }, { key: "firstName", header: "First Name" }, { key: "lastName", header: "Surname" },
+  { key: "categoryLabel", header: "Category" }, { key: "status", header: "Status" },
+  { key: "phone", header: "Phone" }, { key: "phoneLabel", header: "Phone Label" }, { key: "additionalPhones", header: "Additional Phones" },
+  { key: "whatsapp", header: "WhatsApp" }, { key: "emailLabel", header: "Email Label" }, { key: "email", header: "Email" }, { key: "additionalEmails", header: "Additional Emails" },
+  { key: "organization", header: "Business / Company" }, { key: "jobTitle", header: "Job Title" }, { key: "birthday", header: "Birthday" },
+  { key: "city", header: "City" }, { key: "state", header: "State" }, { key: "isTeamMember", header: "Team Member" }, { key: "teamRole", header: "Team Role" }, { key: "teamDepartment", header: "Team / Department" },
+  { key: "workingLocations", header: "Working / Delivery Locations" }, { key: "tags", header: "Tags / Labels" }, { key: "followUpAt", header: "Follow-up Date" },
   { key: "notes", header: "Notes" }, { key: "source", header: "Source" }, { key: "createdAt", header: "Created At" }, { key: "updatedAt", header: "Updated At" },
 ];
 const projectColumns: Column[] = [
@@ -84,12 +87,15 @@ export async function GET(request: Request) {
   // A blank file with the right column names and two example rows, ready to fill in and import.
   if (url.searchParams.get("scope") === "template") {
     const templateColumns: Column[] = [
-      { key: "name", header: "Name" }, { key: "category", header: "Category" }, { key: "phone", header: "Phone" }, { key: "whatsapp", header: "WhatsApp" }, { key: "email", header: "Email" },
-      { key: "organization", header: "Business / Company" }, { key: "city", header: "City" }, { key: "state", header: "State" }, { key: "workingLocations", header: "Working / Delivery Locations" }, { key: "notes", header: "Notes" },
+      { key: "name", header: "Name" }, { key: "firstName", header: "First Name" }, { key: "lastName", header: "Surname" }, { key: "category", header: "Category" },
+      { key: "phone", header: "Phone" }, { key: "phoneLabel", header: "Phone Label" }, { key: "additionalPhones", header: "Additional Phones (label: number; label: number)" },
+      { key: "whatsapp", header: "WhatsApp" }, { key: "emailLabel", header: "Email Label" }, { key: "email", header: "Email" }, { key: "additionalEmails", header: "Additional Emails (label: email; label: email)" },
+      { key: "organization", header: "Business / Company" }, { key: "jobTitle", header: "Job Title" }, { key: "birthday", header: "Birthday (YYYY-MM-DD)" },
+      { key: "city", header: "City" }, { key: "state", header: "State" }, { key: "isTeamMember", header: "Team Member (Yes/No)" }, { key: "teamRole", header: "Team Role" }, { key: "teamDepartment", header: "Team / Department" }, { key: "workingLocations", header: "Working / Delivery Locations" }, { key: "tags", header: "Tags / Labels" }, { key: "notes", header: "Notes" },
     ];
     const examples = [
-      { name: "Example Manpower Services", category: "manpower-supplier", phone: "9876500001", whatsapp: "9876500001", email: "", organization: "Example Manpower Services", city: "Ludhiana", state: "Punjab", workingLocations: "Punjab, Haryana", notes: "Delete this example row" },
-      { name: "Example Cement Traders", category: "vendor-supplier", phone: "9876500002", whatsapp: "", email: "sales@example.com", organization: "Example Cement Traders", city: "Chandigarh", state: "Chandigarh", workingLocations: "Tricity", notes: "Delete this example row" },
+      { name: "Example Manpower Services", firstName: "Example", lastName: "Manpower Services", category: "manpower-supplier", phone: "9876500001", phoneLabel: "Mobile", additionalPhones: "Work: 01724000000", whatsapp: "9876500001", emailLabel: "Work", email: "", additionalEmails: "Work: contact@example.com", organization: "Example Manpower Services", jobTitle: "Supplier", birthday: "", city: "Ludhiana", state: "Punjab", isTeamMember: "No", teamRole: "", teamDepartment: "", workingLocations: "Punjab, Haryana", tags: "example, supplier", notes: "Delete this example row" },
+      { name: "Example Cement Traders", firstName: "Example", lastName: "Cement Traders", category: "vendor-supplier", phone: "9876500002", phoneLabel: "Work", additionalPhones: "", whatsapp: "", emailLabel: "Work", email: "sales@example.com", additionalEmails: "", organization: "Example Cement Traders", jobTitle: "Sales", birthday: "", city: "Chandigarh", state: "Chandigarh", isTeamMember: "No", teamRole: "", teamDepartment: "", workingLocations: "Tricity", tags: "example, materials", notes: "Delete this example row" },
     ];
     return await fileResponse(format, templateColumns, examples, "civil-at-hand-import-template", "Import template");
   }
@@ -106,8 +112,8 @@ export async function GET(request: Request) {
     const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const expression = new RegExp(escaped, "i");
     filter.$or = [
-      { name: expression }, { phone: expression }, { email: expression }, { organization: expression },
-      { city: expression }, { state: expression }, { tags: expression }, { notes: expression },
+      { name: expression }, { firstName: expression }, { lastName: expression }, { phone: expression }, { "phoneNumbers.number": expression }, { email: expression }, { "emailAddresses.value": expression }, { organization: expression }, { jobTitle: expression }, { teamRole: expression },
+      { city: expression }, { state: expression }, { birthday: expression }, { tags: expression }, { notes: expression },
       ...detailKeys.map((key) => ({ [`details.${key}`]: expression })),
     ];
   }
@@ -124,8 +130,11 @@ export async function GET(request: Request) {
     const rows = contacts.map((contact) => {
       const details = (contact.details || {}) as Record<string, unknown>;
       const row: Record<string, unknown> = {
-        name: contact.name, categoryLabel: categoryLabel(String(contact.category || "")), status: contact.status, phone: contact.phone, whatsapp: details.whatsapp,
-        email: contact.email, organization: contact.organization, city: contact.city, state: contact.state, workingLocations: details.workingLocations,
+        name: contact.name, firstName: contact.firstName || "", lastName: contact.lastName || "", categoryLabel: categoryLabel(String(contact.category || "")), status: contact.status,
+        phone: contact.phone, phoneLabel: contact.phoneLabel || "Mobile", additionalPhones: Array.isArray(contact.phoneNumbers) ? (contact.phoneNumbers as { label?: string; number?: string }[]).map((item) => `${item.label || "Mobile"}: ${item.number || ""}`).join("; ") : "",
+        whatsapp: details.whatsapp, emailLabel: contact.emailLabel || "Work", email: contact.email, additionalEmails: Array.isArray(contact.emailAddresses) ? (contact.emailAddresses as { label?: string; value?: string }[]).map((item) => `${item.label || "Work"}: ${item.value || ""}`).join("; ") : "",
+        organization: contact.organization, jobTitle: contact.jobTitle || "", birthday: contact.birthday || "", city: contact.city, state: contact.state,
+        isTeamMember: contact.isTeamMember ? "Yes" : "No", teamRole: contact.teamRole || "", teamDepartment: contact.teamDepartment || "", workingLocations: details.workingLocations,
         tags: Array.isArray(contact.tags) ? contact.tags.map((tag) => cellString(tag)).join(", ") : "", followUpAt: contact.followUpAt, notes: contact.notes, source: contact.source,
         createdAt: contact.createdAt, updatedAt: contact.updatedAt,
       };

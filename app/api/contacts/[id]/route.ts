@@ -38,7 +38,7 @@ export async function PUT(request: Request, context: Context) {
     if (!existing) return NextResponse.json({ error: "Record not found." }, { status: 404 });
     const normalized = normalizeContactInput(payload);
     if (payload.allowDuplicate !== true) {
-      const duplicates = await findDuplicateContacts(normalized.phone, normalized.email, id);
+      const duplicates = await findDuplicateContacts(normalized.phone, normalized.email, id, normalized.phoneNumbers, normalized.emailAddresses);
       if (duplicates.length) return NextResponse.json({ error: "Another contact already uses this phone number or email.", duplicates }, { status: 409 });
     }
     // Editing a record must not erase how it entered the system.

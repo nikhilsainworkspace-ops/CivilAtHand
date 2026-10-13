@@ -4,6 +4,7 @@ import { phoneKey, emailKey, findMatches, duplicateGroups, duplicateIdSet } from
 import { bucketFollowUps, addDays, dateKey, collectFollowUps } from "@/lib/followups";
 import { parseCsv, escapeCsv, unprotectCell } from "@/lib/csv";
 import { normalizeContactInput } from "@/lib/contact-input";
+import { googleLabeledValues, safeGoogleEmailLabel, safeGooglePhoneLabel } from "@/lib/google-contacts";
 import { normalizeProjectInput } from "@/lib/projects";
 import { InputError } from "@/lib/errors";
 import { buildReport } from "@/lib/reports";
@@ -28,17 +29,51 @@ test("findMatches finds same phone or email, and can ignore the record being edi
   assert.deepEqual(findMatches(list, "", ""), []);
 });
 
+test("contact normalizer saves Google Contacts-style phones, emails, birthday, and team fields", () => {
+  const contact = normalizeContactInput({
+    category: "general-contact", firstName: "Riya", lastName: "Sharma", phone: "+91 98765 43210", phoneLabel: "Work",
+    phoneNumbers: [{ label: "Home", number: "9876543210" }, { label: "Work", number: "0172 444 2222" }, { label: "Mobile", number: "" }],
+    email: "RIYA@example.com", emailAddresses: [{ label: "Home", value: "home@example.com" }, { label: "Other", value: "riya@example.com" }],
+    organization: "Example Build", jobTitle: "Site Engineer", birthday: "1995-03-10", isTeamMember: true,
+    teamRole: "Project Coordinator", teamDepartment: "Operations", tags: "team, trusted",
+  });
+  assert.equal(contact.name, "Riya Sharma");
+  assert.equal(contact.phoneLabel, "Work");
+  assert.deepEqual(contact.phoneNumbers, [{ label: "Work", number: "0172 444 2222" }]);
+  assert.deepEqual(contact.emailAddresses, [{ label: "Home", value: "home@example.com" }]);
+  assert.equal(contact.birthday, "1995-03-10");
+  assert.equal(contact.isTeamMember, true);
+  assert.equal(contact.teamRole, "Project Coordinator");
+  assert.deepEqual(contact.tags, ["team", "trusted"]);
+});
+
+test("Google Contacts CSV imports standard Label and Value columns for multiple phones and emails", () => {
+  const headers = ["Given Name", "Family Name", "Phone 1 - Label", "Phone 1 - Value", "Phone 2 - Label", "Phone 2 - Value", "E-mail 1 - Label", "E-mail 1 - Value", "E-mail 2 - Label", "E-mail 2 - Value"];
+  const values = ["Riya", "Sharma", "* Mobile", "+91 98765 43210", "Work", "0172 444 2222", "* Work", "RIYA@example.com", "Home", "riya.home@example.com"];
+  const phones = googleLabeledValues(headers, values, "phone");
+  const emails = googleLabeledValues(headers, values, "email");
+  assert.deepEqual(phones, [{ label: "Mobile", value: "+91 98765 43210" }, { label: "Work", value: "0172 444 2222" }]);
+  assert.deepEqual(emails, [{ label: "Work", value: "RIYA@example.com" }, { label: "Home", value: "riya.home@example.com" }]);
+  assert.equal(safeGooglePhoneLabel(phones[1].label), "Work");
+  assert.equal(safeGoogleEmailLabel(emails[1].label), "Home");
+});
+
 test("duplicateGroups links records through phone or email", () => {
   const list = [
     { _id: "1", phone: "9876543210", email: "x@x.com" },
     { _id: "2", phone: "+919876543210", email: "" },
     { _id: "3", phone: "", email: "x@x.com" },
     { _id: "4", phone: "9000000000", email: "" },
+    { _id: "5", phone: "1111111111", email: "", phoneNumbers: [{ number: "9000000000" }] },
   ];
   const groups = duplicateGroups(list);
-  assert.equal(groups.length, 1);
-  assert.deepEqual(groups[0].map((x) => x._id).sort(), ["1", "2", "3"]);
-  assert.equal(duplicateIdSet(list).has("4"), false);
+  assert.equal(groups.length, 2);
+  const originalGroup = groups.find((group) => group.some((x) => x._id === "1"));
+  const alternatePhoneGroup = groups.find((group) => group.some((x) => x._id === "4"));
+  assert.deepEqual(originalGroup?.map((x) => x._id).sort(), ["1", "2", "3"]);
+  assert.deepEqual(alternatePhoneGroup?.map((x) => x._id).sort(), ["4", "5"]);
+  assert.equal(duplicateIdSet(list).has("4"), true);
+  assert.equal(duplicateIdSet(list).has("5"), true);
 });
 
 test("follow-ups are bucketed by calendar day", () => {

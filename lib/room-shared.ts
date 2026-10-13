@@ -9,8 +9,10 @@ export const roomStatusLabel: Record<RoomStatus, string> = {
 
 export const contactShareFields: RoomColumn[] = [
   { key: "name", label: "Name" }, { key: "categoryLabel", label: "Category" }, { key: "organization", label: "Business / Company" },
-  { key: "city", label: "City" }, { key: "state", label: "State" }, { key: "phone", label: "Phone" }, { key: "whatsapp", label: "WhatsApp" },
-  { key: "email", label: "Email" }, { key: "workingLocations", label: "Working / Delivery Locations" }, { key: "yearsExperience", label: "Experience" },
+  { key: "jobTitle", label: "Job title" }, { key: "teamRole", label: "Team role" }, { key: "city", label: "City" }, { key: "state", label: "State" },
+  { key: "phoneLabel", label: "Phone label" }, { key: "phone", label: "Phone" }, { key: "additionalPhones", label: "Additional phone numbers" }, { key: "whatsapp", label: "WhatsApp" },
+  { key: "emailLabel", label: "Email label" }, { key: "email", label: "Email" }, { key: "additionalEmails", label: "Additional email addresses" }, { key: "birthday", label: "Birthday" }, { key: "tags", label: "Labels / tags" },
+  { key: "workingLocations", label: "Working / Delivery Locations" }, { key: "yearsExperience", label: "Experience" },
 ];
 
 export const rateShareFields: RoomColumn[] = [

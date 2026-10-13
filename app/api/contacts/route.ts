@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     if (q) {
       const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const re = new RegExp(escaped, "i");
-      filter.$or = [{ name: re }, { phone: re }, { email: re }, { organization: re }, { city: re }, { state: re }, { tags: re }, { "details.workerTypes": re }, { "details.productCategories": re }, { "details.workSpecialty": re }, { "details.services": re }];
+      filter.$or = [{ name: re }, { firstName: re }, { lastName: re }, { phone: re }, { "phoneNumbers.number": re }, { email: re }, { "emailAddresses.value": re }, { organization: re }, { jobTitle: re }, { teamRole: re }, { teamDepartment: re }, { city: re }, { state: re }, { birthday: re }, { tags: re }, { "details.workerTypes": re }, { "details.productCategories": re }, { "details.workSpecialty": re }, { "details.services": re }];
     }
     const limit = Math.min(5000, Math.max(1, Number(url.searchParams.get("limit") || 500)));
     const contacts = await Contact.find(filter).select("-interactions").sort({ updatedAt: -1 }).limit(limit).lean();
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     const normalized = normalizeContactInput(payload);
     await dbConnect();
     if (payload.allowDuplicate !== true) {
-      const duplicates = await findDuplicateContacts(normalized.phone, normalized.email);
+      const duplicates = await findDuplicateContacts(normalized.phone, normalized.email, undefined, normalized.phoneNumbers, normalized.emailAddresses);
       if (duplicates.length) {
         return NextResponse.json({ error: "A contact with the same phone number or email already exists.", duplicates }, { status: 409 });
       }

@@ -69,7 +69,13 @@ export function isRepeatView(log: { at: Date | string; kind: string; ip: string;
 }
 
 /* ---------- what can be shared ---------- */
-type ContactLike = { category: string; name: string; phone?: string; email?: string; organization?: string; city?: string; state?: string; details?: Record<string, unknown> };
+type ContactLike = {
+  category: string; name: string; firstName?: string; lastName?: string; jobTitle?: string; teamRole?: string;
+  phone?: string; phoneLabel?: string; phoneNumbers?: { label?: string; number?: string }[];
+  email?: string; emailLabel?: string; emailAddresses?: { label?: string; value?: string }[];
+  organization?: string; city?: string; state?: string; birthday?: string; tags?: string[];
+  details?: Record<string, unknown>;
+};
 
 const CONTACT_BASE_KEYS = new Set(contactShareFields.map((field) => field.key));
 const NEVER_SHARE = new Set(["notes", "fullName"]);
@@ -94,9 +100,23 @@ export function buildContactSnapshot(contacts: ContactLike[], fieldKeys: string[
   if (!columns.length) throw new InputError("Choose at least one field to share.");
   const rows = contacts.map((contact) => {
     const details = (contact.details || {}) as Record<string, unknown>;
+    // The snapshot is intentionally built from an allow-list of share fields. Do not
+    // spread a full contact document here: private notes and admin-only metadata
+    // must never leak into a client link.
+    const additionalPhones = (contact.phoneNumbers || [])
+      .filter((entry) => String(entry.number || "").trim() && String(entry.number || "").trim() !== String(contact.phone || "").trim())
+      .map((entry) => `${entry.label || "Mobile"}: ${mask ? maskPhone(String(entry.number || "")) : String(entry.number || "")}`)
+      .join("; ");
+    const additionalEmails = (contact.emailAddresses || [])
+      .filter((entry) => String(entry.value || "").trim() && String(entry.value || "").trim().toLowerCase() !== String(contact.email || "").trim().toLowerCase())
+      .map((entry) => `${entry.label || "Work"}: ${mask ? maskEmail(String(entry.value || "")) : String(entry.value || "")}`)
+      .join("; ");
     const source: Record<string, string> = {
-      name: contact.name, categoryLabel: categoryLabel(contact.category), organization: contact.organization || "", city: contact.city || "", state: contact.state || "",
-      phone: contact.phone || "", whatsapp: String(details.whatsapp || ""), email: contact.email || "",
+      name: contact.name, categoryLabel: categoryLabel(contact.category), organization: contact.organization || "", jobTitle: contact.jobTitle || String(details.jobTitle || ""),
+      teamRole: contact.teamRole || "", city: contact.city || "", state: contact.state || "",
+      phoneLabel: contact.phoneLabel || "Mobile", phone: contact.phone || "", additionalPhones, whatsapp: String(details.whatsapp || ""),
+      emailLabel: contact.emailLabel || "Work", email: contact.email || "", additionalEmails,
+      birthday: contact.birthday || String(details.birthday || ""), tags: Array.isArray(contact.tags) ? contact.tags.join(", ") : "",
       workingLocations: String(details.workingLocations || ""), yearsExperience: String(details.yearsExperience || ""),
     };
     if (mask) { source.phone = maskPhone(source.phone); source.whatsapp = maskPhone(source.whatsapp); source.email = maskEmail(source.email); }

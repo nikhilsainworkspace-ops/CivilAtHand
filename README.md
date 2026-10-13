@@ -4,18 +4,20 @@ A private management system for a personal civil engineering business. Keep manp
 
 Built with Next.js (App Router), MongoDB (Mongoose) and Vercel. One admin, no public sign-up.
 
+For the detailed contact fields, Team directory, Google Contacts CSV import, and shared-database creation/troubleshooting, read [`CONTACTS-AND-SHARING-GUIDE.md`](./CONTACTS-AND-SHARING-GUIDE.md).
+
 ## What you can do
 
 | Area | Features |
 |---|---|
-| **Contacts** | 10 civil categories with their own fields, add / edit / delete, search, filter by category and status, tags, notes, status, follow-up date |
+| **Contacts** | Google Contacts-style contact cards with first/surname, company, job title, labelled multiple phones and emails, birthday, notes, tags, category-specific details, team member/role/department fields, follow-ups, duplicate detection, and search / filters |
 | **Duplicate detection** | Same phone (last 10 digits, so `+91 98765 43210` = `098765-43210`) or same email is caught when you add/edit a contact (you can still save anyway), flagged with a **Duplicate?** badge, and listed with the **Duplicates** filter. Import skips duplicates. |
 | **Follow-ups** | One list of everything overdue, due today, next 7 days and later, for contacts and projects. Call, WhatsApp, **Done**, **Tomorrow**, **+1 week**. A red counter shows on the menu. (In-app reminders only; nothing is emailed or pushed.) |
 | **Task planner** | Persistent tasks for site visits, quotations, document collection and operations. Due dates, priority, status, notes, links to a contact or project, overdue-first sorting, search, CSV export and completion tracking. |
 | **Private notes** | Admin-only notebook stored in MongoDB: create, edit, search, tag, pin, archive / restore, copy, export to Markdown, and permanently delete notes. Included in the full JSON backup; never exposed on public forms or shared database links. |
 | **Projects & leads** | Lead → Quoted → Negotiation → Ongoing → Completed / On hold / Lost. Client, location, work type, estimated value (₹), dates, lead source, notes, linked contacts (suppliers, subcontractors, workers…), quick stage change, Excel/CSV export |
 | **Public forms** | Create a link per category, share by WhatsApp, optional expiry, pause / reactivate / delete. Labels are bilingual (`Name / नाम`). People see only their own form, never your data. |
-| **Import / export** | Import CSV or `.xlsx` (4 MB, 1,000 rows, bad rows reported). Export contacts (all, or the current filter) and projects as `.xlsx` or `.csv`. |
+| **Import / export** | Import the app's CSV / `.xlsx` template or Google Contacts CSV (including repeated Phone / E-mail Label and Value columns); 4 MB, 1,000 rows, errors and duplicates reported. Export contacts and projects as `.xlsx` or `.csv`. |
 | **Share / print** | WhatsApp and email (`mailto:`) a contact; **Save PDF** (browser print) on contacts, follow-ups, projects and reports. |
 | **Reports** | Contacts by category / status / state / source, new contacts per month, project pipeline by stage with ₹ value, overdue follow-ups, busiest form links. |
 | **Shared databases** | Sell or share a frozen copy of selected contacts or rates through a private link with expiry, passcode, open limit, watermark, download switch, price / paid tracking and an access log. |
@@ -90,17 +92,19 @@ npm run build                # what Vercel runs
 3. **Follow-ups** shows who to contact today. **Task planner** tracks standalone actions and links them to contacts/projects. **Private notes** holds internal-only writing and reminders. **Projects & leads** tracks work from enquiry to completion. **Reports** summarises everything.
 4. Back up: use **Export** now and then, and enable backups in MongoDB Atlas.
 
-Spreadsheet import needs `Name`, `Category` and a phone number or email. The easiest template is an export from this app.
+For imports, provide a name and at least one phone number or email. The app's template can include Category; when importing a Google Contacts CSV without Category, new records default to **General contact**. Google Contact CSV imports understand Given Name, Family Name, Company/Organization, Job Title, Birthday, Notes, labels/groups, plus multiple `Phone N - Label/Value` and `E-mail N - Label/Value` columns. Import a small test file first and inspect the row results before importing a large contact book.
 
 ## Shared databases (sell or share data with a client)
 
 **Shared databases** turns any list of your records into a private, time-limited link for a client or company.
 
 1. Pick the records: tick contacts in the Contact database and press **Share selected…**, or open **Shared databases → Share a database** and filter by category, state, status or (for the Rate book) type and place.
-2. Choose which fields they may see. Your **private notes, tags, status, ratings, follow-ups and history are never shared**, enforced on the server. *Preview mode* hides most of every phone number and email, handy as a free sample before payment.
+2. Choose which fields they may see. **Private contact notes, relationship status, ratings, follow-ups and interaction history are never shared.** Labels / tags can be shared only if you explicitly tick that field. Phone labels, multiple phone numbers, email labels, additional email addresses, birthdays, company and job title can also be selected. *Preview mode* masks primary and additional phone numbers and emails.
 3. Set the rules: **expiry** (required: 1 hour to 1 year, or a date and time), a **passcode** (auto-generated, shown once), an optional **open limit**, **watermark** with the client's name, and whether they may **download Excel/CSV**.
 4. Record the money: price, Free / Unpaid / Paid, and optionally **keep the link locked until you mark it Paid**.
 5. Send the ready-made message by WhatsApp or copy it.
+
+**Where the share link is saved:** creation writes the selected field list and a frozen record snapshot to MongoDB (`DataRoom` collection). It is not just a browser link or local-storage item. After the response succeeds, the link appears in Shared Databases and can be reloaded after refresh. The one-time passcode is returned for you to copy; only its hash is saved.
 
 What happens next: the client opens `/shared/<secret>`, types the passcode and sees a searchable table. You can **pause, extend, reset the passcode, change the open limit, mark paid or delete** at any time, and see an **access log** (opens, downloads, wrong passcodes, masked IP and browser).
 
@@ -108,7 +112,7 @@ Things worth knowing:
 - The link holds a **frozen copy** taken when you created it. Later edits or deletions in your contacts do not change what the client got (so you can prove what was sold). Create a new link for fresh data.
 - 5 wrong passcodes lock that link for 15 minutes. Reloading from the same device within 15 minutes does not use up another "open".
 - Honest limit: anyone who can *see* data can copy it. Expiry, passcodes, watermarks, logs and a written agreement make misuse costly and traceable; they cannot make copying impossible. Downloads of watermarked files carry the client's name and a reference code.
-- **Consent:** contacts are shared only if you recorded **"May this contact be shared with clients? Yes"** (the public form now has an optional checkbox for this). A contact marked **No** is never shared. You can override "not recorded" per share, but check the rules that apply to you (for example India's DPDP Act) before selling personal data. This is not legal advice.
+- **Consent:** contacts explicitly marked **No** are never included. The recommended setting is **Only contacts who explicitly agreed to be shared**; that includes only a recorded Yes. If you turn that filter off, contacts with no recorded answer may be included, but a No still stays excluded. Use that override only when you have a lawful basis and permission to share the information. This is not legal advice.
 
 ## Rate book
 
@@ -150,7 +154,9 @@ This is a private, single-admin portal. Nobody can register; the only outsiders 
 | Cannot reach MongoDB | Check `MONGODB_URI`, database user/password (special characters URL-encoded), Atlas **Network Access** (allow Vercel, e.g. `0.0.0.0/0`) |
 | Records look empty after an update | `MONGODB_DB` / URI database name changed. Restore the previous value |
 | Public link says unavailable | Link is paused, expired, deleted, or copied incompletely |
-| Wrong domain in shared links | Set `NEXT_PUBLIC_SITE_URL`, redeploy, copy the link again |
+| Wrong domain in a new shared link | Open the admin portal at your intended canonical HTTPS domain and create a new link there. New share URLs use the host serving the create request; check `NEXT_PUBLIC_SITE_URL` only as a fallback if your host/proxy setup does not provide the expected origin. Existing link URLs do not rewrite themselves. |
+| Shared database opens but has missing or old contacts | A shared database is a frozen snapshot at creation time. Select the latest records and create a new share link after updating contacts. Recheck the selected fields and consent filter. |
+| Shared database creation fails or has 0 rows | Confirm at least one selected record remains after category/place/status, “Only contacts with a phone number”, “Avoid”, and consent filters; select at least one field and set an expiry. Check Vercel function logs and `MONGODB_URI` if the request returns a server error. |
 | Logo not updating | Check the URL is public HTTPS or a file in `public/`; redeploy; clear the browser favicon cache |
 | Import skips rows | Rows with a duplicate phone/email are skipped on purpose; invalid rows are listed with the reason |
 
@@ -177,7 +183,7 @@ public/                  logo, icons, favicon
 
 ## Detailed portal manual — what each area does and how to use it
 
-This section describes the screens already in the portal plus the incremental Task Planner and Private Notes additions. The system is designed as a single-admin workspace. It does not create public admin accounts. Normal records are stored in your configured MongoDB database and protected API routes require a valid admin session. Public form and shared-database links are deliberately separate from your private dashboard.
+This section describes the screens already in the portal plus the dashboard, Task Planner, Private Notes, Google Contacts-style fields/import, and shared-link fixes. The system is designed as a single-admin workspace. It does not create public admin accounts. Normal records are stored in your configured MongoDB database and protected API routes require a valid admin session. Public form and shared-database links are deliberately separate from your private dashboard.
 
 ### 1. Sign-in and dashboard overview
 
@@ -188,14 +194,16 @@ This section describes the screens already in the portal plus the incremental Ta
 
 ### 2. Contact database
 
-- **Create:** use Add contact, choose the relevant civil-work category, and fill the fields for that type. A phone number or email is required. You can also store city, state, company, status, follow-up date, tags, sharing-consent status and category-specific details.
+- **Create:** use Add contact, choose the relevant civil-work category, and fill the clear, grouped form. A primary or additional phone number / email is required. Store first and last name, company, job title, birthday, labelled primary and additional phone numbers and email addresses, city / state, status, follow-up date, tags, sharing consent, private notes, and the category-specific fields. Each phone/email has a label such as Mobile, Work, Home, Main or Other.
+- **Team directory:** switch on **Team member** on a contact, then enter their role and department. Those contacts also appear in the Team directory panel. This is a directory flag, not a separate login account; it does not create a new portal user or grant access.
+- **Labels / tags:** labels identify a contact's category or relationship (for example `Trusted`, `Architect`, `Punjab`, `Client`); use tags for quick filtering and selected sharing when appropriate. Contact notes and activity history are private admin information and are not part of public/shared snapshots.
 - **Edit:** use the pencil action on a row. Editing keeps the record's original source information. Use the status field to distinguish new, contacted, qualified, active, on-hold and closed relationships.
 - **Search and filters:** search name, phone, email, organisation, place and related details. Filter by category and status. The Duplicates action finds likely repeat records.
 - **Duplicate safety:** add/edit checks matching phone numbers (normalised to the last 10 digits) and email addresses. You can explicitly confirm saving a possible duplicate, but avoid doing so unless they are truly different people/records. Import skips known duplicates.
 - **Bulk actions:** select rows to update status, add tags, set sharing consent, mark Preferred/Avoid, share selected records or delete. Check the selection carefully before any bulk delete.
 - **Contact actions:** call via the telephone link, message on WhatsApp, share a contact summary, email a contact summary, or open the contact's history. The star rating and Preferred/Avoid flag help prioritise trusted suppliers or contacts to avoid.
 - **History:** log calls, WhatsApp messages, meetings, emails, site visits or notes as interaction entries. This makes it easier to see the last contact and what was discussed. The history is private; do not assume it is included in a shared database.
-- **Import:** choose a CSV or `.xlsx` workbook that follows the downloadable Template. Review the results and rejected rows; imports are limited to 4 MB and 1,000 data rows per upload. Old `.xls` files must be saved as `.xlsx` or CSV first.
+- **Import:** upload the app template as CSV / `.xlsx`, or export your address book from Google Contacts as Google CSV and upload that file directly. Google fields are mapped from Given / Family Name, Organization, Job Title, Birthday, Notes, Group Membership and repeated Phone / E-mail Label and Value columns. Category is optional for Google CSV and defaults to General contact. Review imported / skipped / rejected row counts before importing a large list; limit is 4 MB and 1,000 data rows. Old `.xls` files must be saved as `.xlsx` or CSV first.
 - **Export:** download CSV or Excel for the full contact database or the current filters. The export menu also supports browser print / Save as PDF. Treat exported files as sensitive because they contain contact information.
 - **Merge duplicates:** select the records to merge, choose which record to keep, and review the combined information before confirming. The merge tool preserves missing data and updates references where supported.
 

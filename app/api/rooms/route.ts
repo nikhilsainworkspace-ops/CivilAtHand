@@ -56,7 +56,13 @@ export async function POST(request: Request) {
     let excludedForConsent = 0;
     const masked = dataset === "contacts" && body.mask === true;
     if (dataset === "contacts") {
-      const found = (await Contact.find({ _id: { $in: ids } }).lean()) as unknown as { category: string; name: string; phone?: string; email?: string; organization?: string; city?: string; state?: string; shareConsent?: string; details?: Record<string, unknown> }[];
+      const found = (await Contact.find({ _id: { $in: ids } }).lean()) as unknown as {
+        category: string; name: string; firstName?: string; lastName?: string; jobTitle?: string; teamRole?: string;
+        phone?: string; phoneLabel?: string; phoneNumbers?: { label?: string; number?: string }[];
+        email?: string; emailLabel?: string; emailAddresses?: { label?: string; value?: string }[];
+        organization?: string; city?: string; state?: string; birthday?: string; tags?: string[];
+        shareConsent?: string; details?: Record<string, unknown>;
+      }[];
       const requireConsent = body.requireConsent !== false;
       const allowed = found.filter((c) => consentAllows(c.shareConsent, requireConsent));
       excludedForConsent = found.length - allowed.length;

@@ -7,7 +7,7 @@ The ZIP contains only files that are new or updated relative to the original upl
 1. Make a backup of your repository or create a Git commit before applying the patch.
 2. Download and unzip this patch.
 3. Copy its contents into your current repository root, preserving directory paths. Allow overwrite only for matching files.
-4. Review `PATCH-MANIFEST.md`, `NAVIGATION-ACCESSIBILITY-UPDATE.md`, `README.md`, and `UPDATES.md`.
+4. Review `PATCH-MANIFEST.md`, `NAVIGATION-ACCESSIBILITY-UPDATE.md`, `CONTACTS-AND-SHARING-GUIDE.md`, `README.md`, and `UPDATES.md`.
 5. Keep the existing Vercel variables and MongoDB configuration; do not replace secrets with the placeholder values in `.env.example`.
 6. From the project root, run:
 
@@ -35,7 +35,7 @@ npm run build
 - Check automatic lock, signed-in sessions and the activity log. Keep a safe recovery path for the authenticator.
 
 ### Contacts and projects
-- Create and edit a test contact; search it; check duplicate warnings, filters, multi-select/bulk actions, import/export and CSV/XLSX as available in the original project.
+- Create and edit a test contact with alternate labelled phones/emails, company, job title, birthday, tags and a team role; search it; check duplicate warnings including alternate numbers/emails, filters, multi-select/bulk actions, and import/export. Test a small Google Contacts CSV containing `Phone 1 - Label/Value` and `E-mail 1 - Label/Value` before importing a full address book.
 - Create and edit a test project/lead, change its status, and check links to contacts.
 
 ### Follow-ups and Task Planner
@@ -50,7 +50,7 @@ npm run build
 
 ### Other panels and records
 - Check Rate Book, Shared Databases, Reports, Public Form Links, Security and Settings one by one.
-- Test a share link in a signed-out/private window; it must open only the public form or specifically shared content, never the admin dashboard or private notes.
+- Create a shared database from dummy records, wait for the success response, refresh Shared Databases and confirm the saved room remains. Use Test link in a signed-out/private window; it must open only the selected frozen snapshot, never the admin dashboard or private notes. Check extra phone/email fields only appear when selected, and Preview mode masks all primary/alternate values. Changing source contacts should not mutate an existing frozen snapshot; create a new one for current data.
 - Use a full JSON backup and verify it includes the new task and private notes data. Backups contain sensitive content and must be stored securely; the current patch does not supply a separate one-click restore screen.
 - In Settings, use Test connection and confirm the expected MongoDB database status.
 

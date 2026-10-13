@@ -8,9 +8,29 @@ const InteractionSchema = new Schema({
   note: { type: String, maxlength: 1000, default: "", trim: true },
 });
 
+const LabeledPhoneSchema = new Schema({
+  label: { type: String, enum: ["Mobile", "Work", "Home", "Main", "Other"], default: "Mobile" },
+  number: { type: String, trim: true, maxlength: 40, required: true },
+}, { _id: false });
+const LabeledEmailSchema = new Schema({
+  label: { type: String, enum: ["Work", "Home", "Other"], default: "Work" },
+  value: { type: String, trim: true, lowercase: true, maxlength: 180, required: true },
+}, { _id: false });
+
 const ContactSchema = new Schema({
   category: { type: String, required: true, index: true },
   name: { type: String, required: true, trim: true, maxlength: 160 },
+  firstName: { type: String, trim: true, maxlength: 80, default: "" },
+  lastName: { type: String, trim: true, maxlength: 80, default: "" },
+  jobTitle: { type: String, trim: true, maxlength: 120, default: "" },
+  birthday: { type: String, trim: true, maxlength: 10, default: "" },
+  phoneLabel: { type: String, enum: ["Mobile", "Work", "Home", "Main", "Other"], default: "Mobile" },
+  emailLabel: { type: String, enum: ["Work", "Home", "Other"], default: "Work" },
+  phoneNumbers: { type: [LabeledPhoneSchema], default: [] },
+  emailAddresses: { type: [LabeledEmailSchema], default: [] },
+  isTeamMember: { type: Boolean, default: false, index: true },
+  teamRole: { type: String, trim: true, maxlength: 120, default: "" },
+  teamDepartment: { type: String, trim: true, maxlength: 120, default: "" },
   phone: { type: String, trim: true, maxlength: 40, default: "" },
   email: { type: String, trim: true, lowercase: true, maxlength: 180, default: "" },
   organization: { type: String, trim: true, maxlength: 180, default: "" },
@@ -31,7 +51,7 @@ const ContactSchema = new Schema({
   interactions: { type: [InteractionSchema], default: [] },
 }, { timestamps: true, minimize: false });
 
-ContactSchema.index({ name: "text", organization: "text", email: "text", phone: "text", city: "text", state: "text" });
+ContactSchema.index({ name: "text", organization: "text", email: "text", phone: "text", city: "text", state: "text", firstName: "text", lastName: "text", jobTitle: "text", teamRole: "text" });
 ContactSchema.index({ followUpAt: 1 });
 
 export const Contact = (mongoose.models.Contact || mongoose.model("Contact", ContactSchema)) as unknown as Model<ContactDoc>;

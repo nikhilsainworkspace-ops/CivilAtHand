@@ -38,7 +38,7 @@ Everything from version 2 still works. No data migration is needed: every new da
 
 ## New
 - **Shared databases** (new `DataRoom` collection, page `/shared/<token>`): sell or share a frozen copy of selected contacts or rates through a private link with required expiry, passcode (scrypt-hashed), open limit, watermark, download switch, price / paid / unpaid tracking, "locked until paid", pause, extend, reset passcode, and an access log.
-- **Consent to share:** per-contact "may be shared with clients" (Yes / No / not recorded), an optional checkbox on public forms, and sharing that skips contacts without consent by default. "No" is never shared.
+- **Consent to share:** per-contact "may be shared with clients" (Yes / No / not recorded), an optional checkbox on public forms, and a recommended filter to share only records marked Yes. A contact explicitly marked "No" is never shared; records with no saved answer can be included only when the admin turns off the Yes-only filter and has permission to share them.
 - **Rate book** (new `Rate` collection): rates, supplier comparison, stale flags, export, sharing.
 - **Security centre:** 2-step verification (authenticator app), server-side sessions with signed-in devices and real sign-out, idle expiry, browser auto-lock, activity log (180 days), full JSON backup, cross-site request blocking, Content-Security-Policy, `__Host-` cookie.
 - **Productivity:** bulk actions, merge duplicates, per-contact history (calls, meetings, site visits), 1-5 rating, Preferred / Avoid flag, import template, "Hide numbers" privacy button, project billed / received / to-collect, receivables and data sales in Reports.
@@ -85,3 +85,21 @@ No database migration. Environment variables are the same as before (see README)
 
 - Security hardening: auto-lock preference moved from browser `localStorage` into a protected MongoDB preference record; logout revokes the session, expires the HTTP-only cookie, clears app state and browser storage/cache, and broadcasts logout to other tabs. Dashboard/API/tokenised responses receive no-store headers and open tabs periodically revalidate their server session.
 - Server activity heartbeat: live admin interactions refresh the server-side idle timestamp on a throttled interval; periodic read-only session probes do not extend an unattended session.
+
+---
+
+# Civil At Hand: contacts and shared-database reliability update (October 2026)
+
+This update builds on the existing dashboard, security, Task Planner, Private Notes and navigation patches. It adds to the contact schema without renaming existing fields or deleting features.
+
+## Added and improved
+- **Google Contacts-style contact fields:** first/surname, company, job title, birthday, labelled primary phone/email, multiple labelled phone numbers and email addresses, Team Member / role / department, tags, status, follow-up and category-specific details.
+- **Team directory support:** marking an existing CRM contact as a team member surfaces them in the Team directory. This is a contact classification only; it does not grant dashboard login access.
+- **Google Contacts CSV import:** accepts the standard `Phone N - Label/Value` and `E-mail N - Label/Value` headers as well as `Type/Value` variants, and maps names, company, job title, birthday, notes and group labels. Google CSVs without a Category column default to General contact.
+- **Alias-aware duplicate detection:** checks alternate phone numbers and emails during create/edit/import, and links duplicate groups that share an alternate phone/email.
+- **Shared data snapshot repair:** snapshots map selected primary/alternate phone and email fields, labels, job title, team role, birthday and optional tags. Mask/preview mode masks additional phone/email values too. Admin-only notes, relationship metadata and history remain excluded from shared snapshots.
+- **Shared-link diagnostics guide:** explains that successful creation saves the snapshot to MongoDB `DataRoom`, how to confirm a link exists after refresh, and how to troubleshoot consent filters, empty selections, expiry, domain mismatches and frozen snapshots.
+- **Focused tests:** includes a standard Google Contacts CSV label/value test and alias-aware duplicate tests.
+
+## Verification
+The focused logic suite passed 37/37 tests using the globally available TypeScript runtime in transpile-only mode. TypeScript/TSX source syntax and CSS parsing were checked separately. A full project typecheck, lint and production build still require dependencies to be installed in the project environment; do not claim deployment-ready until those checks pass and the Vercel deployment succeeds.

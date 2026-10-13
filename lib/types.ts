@@ -4,6 +4,17 @@
 export type ContactDoc = {
   category: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
+  jobTitle?: string;
+  birthday?: string;
+  phoneLabel?: string;
+  emailLabel?: string;
+  phoneNumbers?: { label: "Mobile" | "Work" | "Home" | "Main" | "Other"; number: string }[];
+  emailAddresses?: { label: "Work" | "Home" | "Other"; value: string }[];
+  isTeamMember?: boolean;
+  teamRole?: string;
+  teamDepartment?: string;
   phone: string;
   email: string;
   organization: string;
@@ -66,7 +77,7 @@ export type LoginAttemptDoc = {
 
 /** What the browser receives for one contact (JSON). */
 export type ContactRecord = {
-  _id: string; category: string; name: string; phone: string; email: string; organization: string; city: string; state: string;
+  _id: string; category: string; name: string; firstName?: string; lastName?: string; jobTitle?: string; birthday?: string; phoneLabel?: string; emailLabel?: string; phoneNumbers?: { label: "Mobile" | "Work" | "Home" | "Main" | "Other"; number: string }[]; emailAddresses?: { label: "Work" | "Home" | "Other"; value: string }[]; isTeamMember?: boolean; teamRole?: string; teamDepartment?: string; phone: string; email: string; organization: string; city: string; state: string;
   status: string; source: string; linkId?: string; tags: string[]; notes: string; followUpAt?: string | null;
   details: Record<string, string>; createdAt: string; updatedAt: string;
   rating?: number; flag?: string; shareConsent?: string; lastContactedAt?: string | null; interactions?: InteractionRecord[];

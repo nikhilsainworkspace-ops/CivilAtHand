@@ -32,9 +32,9 @@ function CreateRoomModal({ contacts, rates, preselected, onClose, onCreated, own
   const [dataset, setDataset] = useState<"contacts" | "rates">("contacts");
   const [useSelected, setUseSelected] = useState(preselected.length > 0);
   const [category, setCategory] = useState(""); const [status, setStatus] = useState(""); const [place, setPlace] = useState(""); const [onlyPhone, setOnlyPhone] = useState(false);
-  const [requireConsent, setRequireConsent] = useState(true); const [skipAvoid, setSkipAvoid] = useState(true);
+  const [requireConsent, setRequireConsent] = useState(false); const [skipAvoid, setSkipAvoid] = useState(true);
   const [group, setGroup] = useState("");
-  const [contactFields, setContactFields] = useState<string[]>(["name", "categoryLabel", "organization", "city", "state"]);
+  const [contactFields, setContactFields] = useState<string[]>(["name", "categoryLabel", "organization", "jobTitle", "teamRole", "phoneLabel", "phone", "additionalPhones", "emailLabel", "email", "additionalEmails", "city", "state"]);
   const [rateFields, setRateFields] = useState<string[]>(["item", "groupLabel", "spec", "unit", "rate", "city", "state", "validTill"]);
   const [includeDetails, setIncludeDetails] = useState(false); const [mask, setMask] = useState(false);
   const [expiry, setExpiry] = useState("168"); const [customExpiry, setCustomExpiry] = useState("");
@@ -47,7 +47,7 @@ function CreateRoomModal({ contacts, rates, preselected, onClose, onCreated, own
   const matchingContacts = useMemo(() => {
     if (useSelected) return contacts.filter((c) => selectedSet.has(c._id));
     const q = place.trim().toLowerCase();
-    return contacts.filter((c) => (!category || c.category === category) && (!status || c.status === status) && (!q || `${c.city} ${c.state}`.toLowerCase().includes(q)) && (!onlyPhone || c.phone));
+    return contacts.filter((c) => (!category || c.category === category) && (!status || c.status === status) && (!q || `${c.city} ${c.state}`.toLowerCase().includes(q)) && (!onlyPhone || Boolean(c.phone || c.phoneNumbers?.some((item) => item.number.trim()))));
   }, [contacts, useSelected, selectedSet, category, status, place, onlyPhone]);
   const eligibleContacts = useMemo(() => matchingContacts.filter((c) => consentAllows(c.shareConsent, requireConsent) && !(skipAvoid && c.flag === "avoid")), [matchingContacts, requireConsent, skipAvoid]);
   const matchingRates = useMemo(() => {
@@ -85,7 +85,7 @@ function CreateRoomModal({ contacts, rates, preselected, onClose, onCreated, own
         <div className="rm-copy-row"><div><small>Link</small><code>{created.room.shareUrl}</code></div><button className="secondary-button" onClick={() => void copy(created.room.shareUrl, "link")}>{copied === "link" ? "Copied ✓" : "Copy link"}</button></div>
         {created.passcode ? <div className="rm-copy-row"><div><small>Passcode (shown only now)</small><code className="rm-passcode">{created.passcode}</code></div><button className="secondary-button" onClick={() => void copy(created.passcode, "pass")}>{copied === "pass" ? "Copied ✓" : "Copy passcode"}</button></div> : <p className="rm-note">No passcode: anyone with the link can open it until it expires.</p>}
         <textarea className="rm-message" readOnly rows={7} value={msg} aria-label="Message to send" />
-        <div className="modal-actions"><button className="secondary-button" onClick={() => void copy(msg, "msg")}>{copied === "msg" ? "Copied ✓" : "Copy message"}</button><a className="primary-button" href={`https://wa.me/?text=${encodeURIComponent(msg)}`} target="_blank" rel="noopener noreferrer">Send on WhatsApp</a><button className="secondary-button" onClick={onClose}>Done</button></div>
+        <div className="modal-actions"><button className="secondary-button" onClick={() => void copy(msg, "msg")}>{copied === "msg" ? "Copied ✓" : "Copy message"}</button><a className="primary-button" href={`https://wa.me/?text=${encodeURIComponent(msg)}`} target="_blank" rel="noopener noreferrer">Send on WhatsApp</a><a className="secondary-button" href={created.room.shareUrl} target="_blank" rel="noopener noreferrer">Test link ↗</a><button className="secondary-button" onClick={onClose}>Done</button></div>
       </div></section></div>;
   }
 
@@ -109,7 +109,7 @@ function CreateRoomModal({ contacts, rates, preselected, onClose, onCreated, own
             <label className="field-wrap"><span>City or state contains</span><input value={place} onChange={(e) => setPlace(e.target.value)} placeholder="e.g. Punjab" /></label>
             <label className="rm-check"><input type="checkbox" checked={onlyPhone} onChange={(e) => setOnlyPhone(e.target.checked)} /> Only contacts with a phone number</label>
           </> : null}
-          <label className="rm-check field-full"><input type="checkbox" checked={requireConsent} onChange={(e) => setRequireConsent(e.target.checked)} /> Only contacts who agreed to be shared with clients (recommended)</label>
+          <label className="rm-check field-full"><input type="checkbox" checked={requireConsent} onChange={(e) => setRequireConsent(e.target.checked)} /> Only contacts who explicitly agreed to be shared (recommended)</label><p className="rm-note field-full">Contacts marked “No, never share” are always excluded. When this option is off, contacts with no recorded consent may be included—share only where you have a valid reason and permission.</p>
           <label className="rm-check field-full"><input type="checkbox" checked={skipAvoid} onChange={(e) => setSkipAvoid(e.target.checked)} /> Leave out contacts I flagged “Avoid”</label>
         </> : <>
           <label className="field-wrap"><span>Type</span><select value={group} onChange={(e) => setGroup(e.target.value)}><option value="">All types</option>{rateGroups.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}</select></label>
@@ -122,7 +122,7 @@ function CreateRoomModal({ contacts, rates, preselected, onClose, onCreated, own
         <div className="rm-checks">{(dataset === "contacts" ? contactShareFields : rateShareFields).map((f) => { const list = dataset === "contacts" ? contactFields : rateFields; const set = dataset === "contacts" ? setContactFields : setRateFields; return <label className="rm-check" key={f.key}><input type="checkbox" checked={list.includes(f.key)} onChange={() => toggle(list, set, f.key)} /> {f.label}</label>; })}</div>
         {dataset === "contacts" ? <><label className="rm-check"><input type="checkbox" checked={includeDetails} onChange={(e) => setIncludeDetails(e.target.checked)} /> Include category details (skills, capacity, products, licences…)</label>
           <label className="rm-check"><input type="checkbox" checked={mask} onChange={(e) => setMask(e.target.checked)} /> Preview mode: hide most of each phone number and email</label></> : null}
-        <p className="rm-note">Your private notes, tags, status, ratings and follow-ups are never shared.</p>
+        <p className="rm-note">Private notes, relationship status, ratings and follow-ups are never shared. Labels / tags are included only when you explicitly select that field above.</p>
       </div>
 
       <div className="rm-section"><h3>4 · Access rules</h3><div className="form-grid admin-form-grid">

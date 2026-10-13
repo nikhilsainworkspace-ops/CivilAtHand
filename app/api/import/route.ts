@@ -7,6 +7,7 @@ import { categories, contactStatuses, getFields } from "@/lib/categories";
 import { cleanText } from "@/lib/contact-input";
 import { parseCsv, unprotectCell } from "@/lib/csv";
 import { emailKey, phoneKey } from "@/lib/duplicates";
+import { googleLabeledValues, safeGoogleEmailLabel, safeGooglePhoneLabel } from "@/lib/google-contacts";
 import { Contact } from "@/models/Contact";
 
 export const runtime = "nodejs";
@@ -19,6 +20,17 @@ const MAX_REPORTED_ERRORS = 20;
 type PreparedContact = {
   category: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
+  jobTitle?: string;
+  birthday?: string;
+  phoneLabel?: "Mobile" | "Work" | "Home" | "Main" | "Other";
+  emailLabel?: "Work" | "Home" | "Other";
+  phoneNumbers?: { label: "Mobile" | "Work" | "Home" | "Main" | "Other"; number: string }[];
+  emailAddresses?: { label: "Work" | "Home" | "Other"; value: string }[];
+  isTeamMember?: boolean;
+  teamRole?: string;
+  teamDepartment?: string;
   phone: string;
   email: string;
   organization: string;
@@ -96,11 +108,39 @@ function parseCategory(value: string) {
   return categories.find((item) => normalizeHeader(item.id) === key || normalizeHeader(item.label) === key);
 }
 
+type ImportedPhone = { label: "Mobile" | "Work" | "Home" | "Main" | "Other"; number: string };
+type ImportedEmail = { label: "Work" | "Home" | "Other"; value: string };
+function parseLabeledItems(raw: string, kind: "phone"): ImportedPhone[];
+function parseLabeledItems(raw: string, kind: "email"): ImportedEmail[];
+function parseLabeledItems(raw: string, kind: "phone" | "email"): ImportedPhone[] | ImportedEmail[] {
+  const parts = raw.split(/[;|]/).map((part) => part.trim()).filter(Boolean).slice(0, 10);
+  if (kind === "phone") {
+    const known = new Set(["mobile", "work", "home", "main", "other"]);
+    const labels: Record<string, ImportedPhone["label"]> = { mobile: "Mobile", work: "Work", home: "Home", main: "Main", other: "Other" };
+    return parts.flatMap((part): ImportedPhone[] => {
+      const split = part.indexOf(":");
+      const rawLabel = split > 0 ? part.slice(0, split).trim().toLowerCase() : "mobile";
+      const number = (split > 0 ? part.slice(split + 1) : part).trim().slice(0, 40);
+      if (!number) return [];
+      return [{ label: known.has(rawLabel) ? labels[rawLabel] : "Other", number }];
+    });
+  }
+  const known = new Set(["work", "home", "other"]);
+  const labels: Record<string, ImportedEmail["label"]> = { work: "Work", home: "Home", other: "Other" };
+  return parts.flatMap((part): ImportedEmail[] => {
+    const split = part.indexOf(":");
+    const rawLabel = split > 0 ? part.slice(0, split).trim().toLowerCase() : "work";
+    const value = (split > 0 ? part.slice(split + 1) : part).trim().slice(0, 180).toLowerCase();
+    if (!value) return [];
+    return [{ label: known.has(rawLabel) ? labels[rawLabel] : "Other", value }];
+  });
+}
+
 function prepareRow(headers: string[], values: string[], line: number): { contact?: PreparedContact; error?: string } {
   const get = buildHeaderLookup(headers, values);
   const categoryValue = get(["Category", "categoryId", "Contact category", "Category ID"]);
-  const category = parseCategory(categoryValue);
-  if (!category) return { error: categoryValue ? `Unknown category "${categoryValue}".` : "Category is blank." };
+  const category = categoryValue ? parseCategory(categoryValue) : parseCategory("general-contact");
+  if (!category) return { error: `Unknown category "${categoryValue}".` };
 
   const details: Record<string, string> = {};
   for (const field of getFields(category.id)) {
@@ -117,19 +157,41 @@ function prepareRow(headers: string[], values: string[], line: number): { contac
     details[field.key] = cleanText(get(aliases), field.key === "notes" ? 6000 : 2000);
   }
 
-  const name = cleanText(get(["Name", "Full Name", "fullName"]) || details.fullName, 160);
-  const phone = cleanText(get(["Phone", "Phone number", "Mobile", "Mobile number"]) || details.phone, 40);
-  const email = cleanText(get(["Email", "Email address"]) || details.email, 180).toLowerCase();
+  const googlePhones = googleLabeledValues(headers, values, "phone").map((item) => ({ label: safeGooglePhoneLabel(item.label), number: item.value.slice(0, 40) }));
+  const googleEmails = googleLabeledValues(headers, values, "email").map((item) => ({ label: safeGoogleEmailLabel(item.label), value: item.value.slice(0, 180).toLowerCase() }));
+  const rawFirstName = cleanText(get(["First Name", "Given Name", "givenName", "firstName"]), 80);
+  const rawLastName = cleanText(get(["Surname", "Last Name", "Family Name", "FamilyName", "lastName"]), 80);
+  const nameFromColumns = [rawFirstName, rawLastName].filter(Boolean).join(" ");
+  const name = cleanText(get(["Name", "Full Name", "fullName"]) || details.fullName || nameFromColumns, 160);
+  const splitName = name.split(/\s+/).filter(Boolean);
+  const firstName = rawFirstName || cleanText(splitName[0] || "", 80);
+  const lastName = rawLastName || cleanText(splitName.length > 1 ? splitName.slice(1).join(" ") : "", 80);
+  const phoneFromGoogle = googlePhones[0];
+  const phone = cleanText(get(["Phone", "Phone number", "Mobile", "Mobile number"]) || phoneFromGoogle?.number || details.phone, 40);
+  const phoneLabelRaw = cleanText(get(["Phone Label", "phoneLabel"]) || phoneFromGoogle?.label, 20).toLowerCase();
+  const phoneLabel = ({ mobile: "Mobile", work: "Work", home: "Home", main: "Main", other: "Other" } as Record<string, "Mobile" | "Work" | "Home" | "Main" | "Other">)[phoneLabelRaw] || "Mobile";
+  const phoneNumbers = [...parseLabeledItems(get(["Additional Phones", "Additional Phone Numbers", "phoneNumbers"]), "phone"), ...googlePhones.slice(1)];
+  const emailFromGoogle = googleEmails[0];
+  const email = cleanText(get(["Email", "Email address"]) || emailFromGoogle?.value || details.email, 180).toLowerCase();
+  const emailLabel = safeGoogleEmailLabel(get(["Email Label", "emailLabel"]) || emailFromGoogle?.label || "Work");
+  const emailAddresses = [...parseLabeledItems(get(["Additional Emails", "Additional Email Addresses", "emailAddresses"]), "email"), ...googleEmails.slice(1)];
+  const jobTitle = cleanText(get(["Job Title", "Job title", "jobTitle", "Organization 1 - Title", "Organization Title"]), 120);
+  const birthday = cleanText(get(["Birthday", "birthday"]), 10);
+  const isTeamMember = ["yes", "true", "1", "y"].includes(normalizeHeader(get(["Team Member", "Is Team Member", "isTeamMember"])));
+  const teamRole = cleanText(get(["Team Role", "teamRole"]), 120);
+  const teamDepartment = cleanText(get(["Team / Department", "Team Department", "teamDepartment"]), 120);
   if (!name) return { error: "Name is required." };
-  if (!phone && !email) return { error: "Add a phone number or email address." };
+  if (!phone && !email && !phoneNumbers.length && !emailAddresses.length) return { error: "Add a phone number or email address." };
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "Email address does not look valid." };
+  if (emailAddresses.some((item) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(item.value))) return { error: "An additional email address does not look valid." };
+  if (birthday && (!/^\d{4}-\d{2}-\d{2}$/.test(birthday) || Number.isNaN(Date.parse(`${birthday}T00:00:00Z`)) || new Date(`${birthday}T00:00:00Z`).toISOString().slice(0, 10) !== birthday)) return { error: "Birthday must be a real date in YYYY-MM-DD format." };
 
   details.fullName = name;
   details.phone = phone;
   details.email = email;
-  details.organization = cleanText(get(["Business / Company", "Business or company name", "organization", "Company"]) || details.organization, 180);
-  details.city = cleanText(get(["City", "city"]) || details.city, 120);
-  details.state = cleanText(get(["State", "state"]) || details.state, 120);
+  details.organization = cleanText(get(["Business / Company", "Business or company name", "organization", "Company", "Organization 1 - Name", "Organization Name"]) || details.organization, 180);
+  details.city = cleanText(get(["City", "city", "Address 1 - City", "Address 2 - City", "Address 1 City"]) || details.city, 120);
+  details.state = cleanText(get(["State", "state", "Region", "Address 1 - Region", "Address 2 - Region"]) || details.state, 120);
   details.whatsapp = cleanText(get(["WhatsApp", "WhatsApp number"]) || details.whatsapp, 40);
   details.workingLocations = cleanText(get(["Working / Delivery Locations", "Working / supply locations", "workingLocations"]) || details.workingLocations, 2000);
   details.notes = cleanText(get(["Notes", "Additional notes"]) || details.notes, 6000);
@@ -137,11 +199,31 @@ function prepareRow(headers: string[], values: string[], line: number): { contac
   const rawFollowUp = get(["Follow-up Date", "Follow Up Date", "followUpAt"]);
   const parsedFollowUp = rawFollowUp ? new Date(rawFollowUp) : null;
   const followUpAt = parsedFollowUp && !Number.isNaN(parsedFollowUp.getTime()) ? parsedFollowUp : null;
-  const tags = cleanText(get(["Tags", "tags"]), 1000).split(/[,;|]/).map((tag) => tag.trim().slice(0, 40)).filter(Boolean).slice(0, 30);
+  const rawTags = get(["Tags", "Labels", "Group Membership", "tags"]);
+  const tags = rawTags.split(/[,;|]|:::/).map((tag) => tag.replace(/^\s*\*\s*/, "").trim().slice(0, 40)).filter((tag) => tag && normalizeHeader(tag) !== "mycontacts").slice(0, 30);
 
   return { contact: {
     category: category.id,
     name,
+    firstName,
+    lastName,
+    jobTitle,
+    birthday,
+    phoneLabel,
+    emailLabel,
+    phoneNumbers: phoneNumbers.filter((item, index, all) => {
+      if (phoneKey(item.number) && phoneKey(item.number) === phoneKey(phone)) return false;
+      const key = phoneKey(item.number);
+      return all.findIndex((candidate) => key ? phoneKey(candidate.number) === key : candidate.number === item.number) === index;
+    }).slice(0, 10),
+    emailAddresses: emailAddresses.filter((item, index, all) => {
+      if (emailKey(item.value) === emailKey(email)) return false;
+      const key = emailKey(item.value);
+      return all.findIndex((candidate) => emailKey(candidate.value) === key) === index;
+    }).slice(0, 10),
+    isTeamMember,
+    teamRole,
+    teamDepartment,
     phone,
     email,
     organization: details.organization,
@@ -176,8 +258,10 @@ export async function POST(request: Request) {
     if (usableRows.length - 1 > MAX_DATA_ROWS) return NextResponse.json({ error: `Import up to ${MAX_DATA_ROWS} contacts at a time. Split this file into smaller files and try again.` }, { status: 413 });
 
     const headers = usableRows[0].map((cell) => cell.trim());
-    if (!headers.some((header) => ["name", "fullname"].includes(normalizeHeader(header))) || !headers.some((header) => ["category", "categoryid", "contactcategory"].includes(normalizeHeader(header)))) {
-      return NextResponse.json({ error: "Required columns are missing. Include at least Name and Category. The easiest template is an Excel/CSV export from Civil At Hand." }, { status: 400 });
+    const normalizedHeaders = headers.map(normalizeHeader);
+    const hasName = normalizedHeaders.some((header) => ["name", "fullname", "firstname", "givenname", "lastname", "familyname", "surname"].includes(header));
+    if (!hasName) {
+      return NextResponse.json({ error: "Could not find a contact name column. Use a Civil At Hand template or a Google Contacts CSV export." }, { status: 400 });
     }
 
     const prepared: PreparedContact[] = [];
@@ -193,18 +277,20 @@ export async function POST(request: Request) {
     }
 
     await dbConnect();
-    const existing = (await Contact.find({}, { phone: 1, email: 1 }).lean()) as unknown as { phone?: string; email?: string }[];
-    const seenPhones = new Set(existing.map((contact) => phoneKey(contact.phone)).filter(Boolean));
-    const seenEmails = new Set(existing.map((contact) => emailKey(String(contact.email || ""))).filter(Boolean));
+    const existing = (await Contact.find({}, { phone: 1, email: 1, phoneNumbers: 1, emailAddresses: 1 }).lean()) as unknown as {
+      phone?: string; email?: string; phoneNumbers?: { number?: string }[]; emailAddresses?: { value?: string }[];
+    }[];
+    const seenPhones = new Set(existing.flatMap((contact) => [contact.phone, ...(contact.phoneNumbers || []).map((entry) => entry.number)].map(phoneKey)).filter(Boolean));
+    const seenEmails = new Set(existing.flatMap((contact) => [contact.email, ...(contact.emailAddresses || []).map((entry) => entry.value)].map((value) => emailKey(String(value || ""))).filter(Boolean)));
     const toInsert: PreparedContact[] = [];
     let duplicates = 0;
     for (const contact of prepared) {
-      const phone = phoneKey(contact.phone);
-      const email = emailKey(contact.email);
-      if ((phone && seenPhones.has(phone)) || (email && seenEmails.has(email))) { duplicates += 1; continue; }
+      const phones = [contact.phone, ...(contact.phoneNumbers || []).map((entry) => entry.number)].map(phoneKey).filter(Boolean);
+      const emails = [contact.email, ...(contact.emailAddresses || []).map((entry) => entry.value)].map((value) => emailKey(String(value || ""))).filter(Boolean);
+      if (phones.some((phone) => seenPhones.has(phone)) || emails.some((email) => seenEmails.has(email))) { duplicates += 1; continue; }
       toInsert.push(contact);
-      if (phone) seenPhones.add(phone);
-      if (email) seenEmails.add(email);
+      phones.forEach((phone) => seenPhones.add(phone));
+      emails.forEach((email) => seenEmails.add(email));
     }
 
     let created = 0;
