@@ -16,6 +16,9 @@ Built with Next.js (App Router), MongoDB (Mongoose) and Vercel. One admin, no pu
 | **Import / export** | Import CSV or `.xlsx` (4 MB, 1,000 rows, bad rows reported). Export contacts (all, or the current filter) and projects as `.xlsx` or `.csv`. |
 | **Share / print** | WhatsApp and email (`mailto:`) a contact; **Save PDF** (browser print) on contacts, follow-ups, projects and reports. |
 | **Reports** | Contacts by category / status / state / source, new contacts per month, project pipeline by stage with ₹ value, overdue follow-ups, busiest form links. |
+| **Shared databases** | Sell or share a frozen copy of selected contacts or rates through a private link with expiry, passcode, open limit, watermark, download switch, price / paid tracking and an access log. |
+| **Rate book** | Material, labour and equipment rates with suppliers, supplier comparison, stale-rate flags, export and sharing. |
+| **Security centre** | 2-step verification, signed-in devices, activity log, auto-lock, full backup. |
 | **Branding** | Name, tagline, colour, logo, favicon and domain come from environment variables. |
 
 ## Environment variables (add these in Vercel)
@@ -70,14 +73,49 @@ npm run build                # what Vercel runs
 
 Spreadsheet import needs `Name`, `Category` and a phone number or email. The easiest template is an export from this app.
 
+## Shared databases (sell or share data with a client)
+
+**Shared databases** turns any list of your records into a private, time-limited link for a client or company.
+
+1. Pick the records: tick contacts in the Contact database and press **Share selected…**, or open **Shared databases → Share a database** and filter by category, state, status or (for the Rate book) type and place.
+2. Choose which fields they may see. Your **private notes, tags, status, ratings, follow-ups and history are never shared**, enforced on the server. *Preview mode* hides most of every phone number and email, handy as a free sample before payment.
+3. Set the rules: **expiry** (required: 1 hour to 1 year, or a date and time), a **passcode** (auto-generated, shown once), an optional **open limit**, **watermark** with the client's name, and whether they may **download Excel/CSV**.
+4. Record the money: price, Free / Unpaid / Paid, and optionally **keep the link locked until you mark it Paid**.
+5. Send the ready-made message by WhatsApp or copy it.
+
+What happens next: the client opens `/shared/<secret>`, types the passcode and sees a searchable table. You can **pause, extend, reset the passcode, change the open limit, mark paid or delete** at any time, and see an **access log** (opens, downloads, wrong passcodes, masked IP and browser).
+
+Things worth knowing:
+- The link holds a **frozen copy** taken when you created it. Later edits or deletions in your contacts do not change what the client got (so you can prove what was sold). Create a new link for fresh data.
+- 5 wrong passcodes lock that link for 15 minutes. Reloading from the same device within 15 minutes does not use up another "open".
+- Honest limit: anyone who can *see* data can copy it. Expiry, passcodes, watermarks, logs and a written agreement make misuse costly and traceable; they cannot make copying impossible. Downloads of watermarked files carry the client's name and a reference code.
+- **Consent:** contacts are shared only if you recorded **"May this contact be shared with clients? Yes"** (the public form now has an optional checkbox for this). A contact marked **No** is never shared. You can override "not recorded" per share, but check the rules that apply to you (for example India's DPDP Act) before selling personal data. This is not legal advice.
+
+## Rate book
+
+Save material, labour, equipment and sub-contract rates with unit, supplier (link to a contact), place and validity date. **Compare suppliers** shows the cheapest quote and how much you save. Rates untouched for 90 days are flagged *Old*. Export or share the list as a shared database.
+
+## Other tools
+
+- **Bulk actions:** tick contacts, then set status, add a tag, mark sharing consent, flag Preferred/Avoid, share, or delete.
+- **Merge duplicates:** Duplicates filter → *Merge duplicates…*. Missing details, tags, notes and history are copied into the record you keep; projects and rates that pointed at the others are re-pointed.
+- **History per contact:** log calls, WhatsApp, meetings and site visits; "last contacted" is tracked. Plus a 1-5 star **rating** and a **Preferred / Avoid** flag.
+- **Project money:** billed and received per project, *To collect* tile and report.
+- **Import template:** a blank Excel file with the right columns. **Full backup** (JSON) in Security.
+- **Hide numbers** button blurs phone numbers and emails while someone looks at your screen.
+
 ## Security
 
-- Admin login is checked on the server for every private API route; the session is a signed, HTTP-only, SameSite=Strict cookie (Secure in production), valid 7 days. Signing out removes the cookie from your browser (the cookie is stateless, so change `ADMIN_SESSION_SECRET` to sign out all devices).
-- Failed logins are throttled (8 tries, then 15 minutes), tracked in MongoDB.
-- Public links are bearer links with 192-bit random tokens: anyone who has the link can submit that one form until you pause, expire or delete it. They cannot read any data.
-- Public forms include a honeypot against simple bots. There is no CAPTCHA or per-IP rate limit; pause a link if it is abused.
-- CSV export neutralises spreadsheet formulas. Security headers (HSTS, nosniff, frame deny) are set in `next.config.ts`.
-- The site is set to `noindex`; search engines are told not to list it.
+This is a private, single-admin portal. Nobody can register; the only outsiders who ever see anything are people holding a link you created.
+
+- **Server-checked sessions.** Signing in creates a session record in MongoDB (only a hash of its id). Sign-out really ends it, idle sessions expire (`ADMIN_IDLE_MINUTES`, default 12 h), sessions last at most `ADMIN_SESSION_HOURS` (default 7 days). **Security → Signed-in devices** lists them and can sign out any or all others. The cookie is HTTP-only, SameSite=Strict, `__Host-` prefixed and Secure in production. The browser also locks itself after 5-60 idle minutes (your choice).
+- **2-step verification (optional, recommended).** Security → *Set up 2-step verification* gives you a key for Google/Microsoft Authenticator or Authy; paste it into `ADMIN_TOTP_SECRET` and redeploy. Codes are single-use. If the variable is set but malformed, sign-in is refused rather than silently skipping 2FA. Lost your phone? Delete the variable in Vercel.
+- **Cross-site request blocking:** admin APIs reject requests the browser marks cross-site, on top of SameSite cookies.
+- **Throttling:** failed logins (8 tries, then 15 minutes); public form submissions (20 per hour per device); client link requests; passcode attempts per link.
+- **Activity log:** sign-ins (and failures), deletions, bulk changes, merges, imports, exports, backups and every shared-link change are recorded for 180 days. No secrets are stored in it.
+- **Client links:** 192-bit random tokens, `noindex`, no-store, no referrer; passcodes are stored only as scrypt hashes; the client page can read only its own frozen copy.
+- **Headers:** Content-Security-Policy, HSTS, nosniff, frame deny and COOP are set in `next.config.ts`. CSV export neutralises spreadsheet formulas. The site is `noindex`.
+- **Your part:** use a long unique password, turn on 2-step verification, keep Atlas network access and your Vercel account protected (2FA there too), and download a backup after big changes.
 
 ## Troubleshooting
 
@@ -107,6 +145,7 @@ public/                  logo, icons, favicon
 ## Known limits
 
 - Reminders are shown inside the app; there are no email/SMS/push notifications.
+- Payments are recorded by you (no payment gateway). There is no file/photo storage, and no restore-from-backup button (use MongoDB Atlas backups for full restore; CSV import covers contacts).
 - One admin user. Up to 5,000 contacts are loaded into the dashboard at once; reports use the loaded records.
 - `.xls` (old Excel) is not imported; save as `.xlsx` or CSV.
 - Not an accounting, payroll or contract system.

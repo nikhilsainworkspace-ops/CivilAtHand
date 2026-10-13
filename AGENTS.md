@@ -18,7 +18,9 @@ Do not add unrelated consumer/social-media features. Keep the product simple for
 - Next.js App Router deployed on Vercel.
 - MongoDB persistence via Mongoose. Never replace database persistence with browser-only storage.
 - Admin credentials live only in `ADMIN_USERNAME` and `ADMIN_PASSWORD`. The signed-cookie key is `ADMIN_SESSION_SECRET`. Never hardcode real credentials or expose secrets through `NEXT_PUBLIC_*`.
-- Every admin API route must call `isAdmin()` before reading or changing private records.
+- Every admin API route must call `isAdmin()` before reading or changing private records. `isAdmin()` validates a MongoDB-backed session (`models/AdminSession.ts`) and rejects cross-site requests; sign-in goes through `startSession()`. Never go back to stateless cookies.
+- Client access to shared data goes only through `lib/room-access.ts` (`accessRoom`). Shared snapshots are built by whitelist in `lib/rooms.ts`: never add notes, tags, status, ratings, follow-ups or history to a snapshot. Never import `lib/rooms.ts` from a client component (use `lib/room-shared.ts`).
+- Public pages are limited to `/join/[token]` (submit one form) and `/shared/[token]` (read one frozen, expiring, optionally passcode-protected copy). Nothing else is public. Contacts are shared only with recorded consent unless the admin overrides, and never when consent is "no".
 - Public registration is permitted only through `/join/[token]`, where the unguessable token maps to an active `ShareLink`. Public users must never be able to list/search records, see the admin panel, or see another form's submissions.
 - A link can be paused, expired, or revoked. Keep that behaviour intact.
 - Brand name, tagline, canonical URL, colour, logo and favicon are configurable by environment variables. The included default logo pack lives in `public/`; keep local defaults working when optional environment variables are blank.

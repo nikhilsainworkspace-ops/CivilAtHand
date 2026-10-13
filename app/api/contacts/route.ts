@@ -26,7 +26,7 @@ export async function GET(request: Request) {
       filter.$or = [{ name: re }, { phone: re }, { email: re }, { organization: re }, { city: re }, { state: re }, { tags: re }, { "details.workerTypes": re }, { "details.productCategories": re }, { "details.workSpecialty": re }, { "details.services": re }];
     }
     const limit = Math.min(5000, Math.max(1, Number(url.searchParams.get("limit") || 500)));
-    const contacts = await Contact.find(filter).sort({ updatedAt: -1 }).limit(limit).lean();
+    const contacts = await Contact.find(filter).select("-interactions").sort({ updatedAt: -1 }).limit(limit).lean();
     return NextResponse.json({ contacts }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("Contact list error:", error);

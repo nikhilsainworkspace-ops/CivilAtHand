@@ -61,6 +61,8 @@ export function normalizeProjectInput(payload: Record<string, unknown>) {
     projectType: cleanText(payload.projectType, 120),
     status,
     estimatedValue: parseMoney(payload.estimatedValue),
+    billedAmount: parseMoney(payload.billedAmount),
+    receivedAmount: parseMoney(payload.receivedAmount),
     startDate: parseDate(payload.startDate),
     endDate: parseDate(payload.endDate),
     followUpAt: parseDate(payload.followUpAt),

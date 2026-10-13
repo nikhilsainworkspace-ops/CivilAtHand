@@ -6,10 +6,26 @@ import { normalizeContactInput } from "@/lib/contact-input";
 import { findDuplicateContacts } from "@/lib/duplicate-check";
 import { InputError } from "@/lib/errors";
 import { contactStatuses } from "@/lib/categories";
+import { audit } from "@/lib/audit";
 import { Contact } from "@/models/Contact";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ id: string }> };
+
+export async function GET(_request: Request, context: Context) {
+  if (!(await isAdmin())) return NextResponse.json({ error: "Sign in to continue." }, { status: 401 });
+  const { id } = await context.params;
+  if (!mongoose.isValidObjectId(id)) return NextResponse.json({ error: "Invalid record ID." }, { status: 400 });
+  try {
+    await dbConnect();
+    const contact = await Contact.findById(id).lean();
+    if (!contact) return NextResponse.json({ error: "Record not found." }, { status: 404 });
+    return NextResponse.json({ contact }, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    console.error("Contact read error:", error);
+    return NextResponse.json({ error: "Could not load this record." }, { status: 503 });
+  }
+}
 
 export async function PUT(request: Request, context: Context) {
   if (!(await isAdmin())) return NextResponse.json({ error: "Sign in to continue." }, { status: 401 });
@@ -67,14 +83,15 @@ export async function PATCH(request: Request, context: Context) {
   }
 }
 
-export async function DELETE(_request: Request, context: Context) {
+export async function DELETE(request: Request, context: Context) {
   if (!(await isAdmin())) return NextResponse.json({ error: "Sign in to continue." }, { status: 401 });
   const { id } = await context.params;
   if (!mongoose.isValidObjectId(id)) return NextResponse.json({ error: "Invalid record ID." }, { status: 400 });
   try {
     await dbConnect();
-    const result = await Contact.findByIdAndDelete(id);
+    const result = (await Contact.findByIdAndDelete(id)) as unknown as { name?: string } | null;
     if (!result) return NextResponse.json({ error: "Record not found." }, { status: 404 });
+    await audit(request, "contact-deleted", String(result.name || "").slice(0, 80));
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Contact delete error:", error);

@@ -2,6 +2,12 @@ import mongoose, { Schema, type Model } from "mongoose";
 import type { ContactDoc } from "@/lib/types";
 
 // The schema is unchanged from earlier versions, so existing records keep working.
+const InteractionSchema = new Schema({
+  at: { type: Date, default: Date.now },
+  type: { type: String, enum: ["call", "whatsapp", "meeting", "site-visit", "email", "note"], default: "note" },
+  note: { type: String, maxlength: 1000, default: "", trim: true },
+});
+
 const ContactSchema = new Schema({
   category: { type: String, required: true, index: true },
   name: { type: String, required: true, trim: true, maxlength: 160 },
@@ -17,6 +23,12 @@ const ContactSchema = new Schema({
   notes: { type: String, maxlength: 6000, default: "" },
   followUpAt: { type: Date, default: null },
   details: { type: Schema.Types.Mixed, default: {} },
+  // Added in version 3 (all optional, so older records keep working):
+  rating: { type: Number, min: 0, max: 5, default: 0 },
+  flag: { type: String, enum: ["", "preferred", "avoid"], default: "" },
+  shareConsent: { type: String, enum: ["", "yes", "no"], default: "" },
+  lastContactedAt: { type: Date, default: null },
+  interactions: { type: [InteractionSchema], default: [] },
 }, { timestamps: true, minimize: false });
 
 ContactSchema.index({ name: "text", organization: "text", email: "text", phone: "text", city: "text", state: "text" });

@@ -2,7 +2,8 @@ import { openLeadStatuses } from "@/lib/projects";
 import { dateKey } from "@/lib/followups";
 
 type C = { category: string; status: string; state?: string; city?: string; source?: string; createdAt?: string; followUpAt?: string | null };
-type P = { status: string; estimatedValue: number | null; followUpAt?: string | null };
+type P = { status: string; estimatedValue: number | null; billedAmount?: number | null; receivedAmount?: number | null; followUpAt?: string | null };
+type R = { price: number | null; paymentStatus: string; viewCount: number; status: string };
 type L = { _id: string; title: string; active: boolean; submissions: number };
 
 export type Count = { key: string; count: number };
@@ -13,7 +14,7 @@ function tally(values: string[]): Count[] {
   return Array.from(map, ([key, count]) => ({ key, count })).sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
 }
 
-export function buildReport(contacts: C[], projects: P[], links: L[], now: Date = new Date()) {
+export function buildReport(contacts: C[], projects: P[], links: L[], now: Date = new Date(), rooms: R[] = []) {
   const today = dateKey(now);
   const months: { key: string; label: string; count: number }[] = [];
   for (let i = 5; i >= 0; i -= 1) {
@@ -45,6 +46,13 @@ export function buildReport(contacts: C[], projects: P[], links: L[], now: Date 
     ongoingValue: projects.filter((p) => p.status === "ongoing").reduce((sum, p) => sum + (p.estimatedValue || 0), 0),
     wonProjects: projects.filter((p) => p.status === "ongoing" || p.status === "completed").length,
     lostProjects: projects.filter((p) => p.status === "lost").length,
+    billedTotal: projects.reduce((sum, p) => sum + (p.billedAmount || 0), 0),
+    receivedTotal: projects.reduce((sum, p) => sum + (p.receivedAmount || 0), 0),
+    outstanding: projects.reduce((sum, p) => sum + Math.max(0, (p.billedAmount || 0) - (p.receivedAmount || 0)), 0),
+    dataSold: rooms.filter((r) => r.paymentStatus === "paid").reduce((sum, r) => sum + (r.price || 0), 0),
+    dataPending: rooms.filter((r) => r.paymentStatus === "unpaid").reduce((sum, r) => sum + (r.price || 0), 0),
+    liveRooms: rooms.filter((r) => r.status === "live").length,
+    roomOpens: rooms.reduce((sum, r) => sum + (r.viewCount || 0), 0),
     linkRows: links.filter((l) => l.submissions > 0).sort((a, b) => b.submissions - a.submissions).slice(0, 8),
   };
 }

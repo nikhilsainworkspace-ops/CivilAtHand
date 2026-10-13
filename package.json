@@ -1,6 +1,6 @@
 {
   "name": "civil-at-hand",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "private": true,
   "description": "A private civil engineering business CRM: contacts, projects and leads, follow-ups, reports and secure public bilingual forms.",
   "engines": {
@@ -12,7 +12,9 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "test:integration": "node --experimental-test-module-mocks --import tsx --test tests/integration/*.test.ts",
+    "check": "npm run typecheck && npm test && npm run test:integration"
   },
   "dependencies": {
     "exceljs": "^4.4.0",

@@ -16,6 +16,11 @@ export type ContactDoc = {
   notes: string;
   followUpAt: Date | null;
   details: Record<string, string>;
+  rating?: number;
+  flag?: string;
+  shareConsent?: string;
+  lastContactedAt?: Date | null;
+  interactions?: { _id: unknown; at: Date; type: string; note: string }[];
   createdAt: Date;
   updatedAt: Date;
 };
@@ -41,6 +46,8 @@ export type ProjectDoc = {
   projectType: string;
   status: string;
   estimatedValue: number | null;
+  billedAmount?: number | null;
+  receivedAmount?: number | null;
   startDate: Date | null;
   endDate: Date | null;
   followUpAt: Date | null;
@@ -62,7 +69,10 @@ export type ContactRecord = {
   _id: string; category: string; name: string; phone: string; email: string; organization: string; city: string; state: string;
   status: string; source: string; linkId?: string; tags: string[]; notes: string; followUpAt?: string | null;
   details: Record<string, string>; createdAt: string; updatedAt: string;
+  rating?: number; flag?: string; shareConsent?: string; lastContactedAt?: string | null; interactions?: InteractionRecord[];
 };
+
+export type InteractionRecord = { _id: string; at: string; type: string; note: string };
 
 export type ShareLinkRecord = {
   _id: string; token: string; title: string; category: string; active: boolean; expiresAt?: string | null;
@@ -72,6 +82,34 @@ export type ShareLinkRecord = {
 export type ProjectRecord = {
   _id: string; title: string; clientName: string; clientContactId: string; linkedContactIds: string[];
   city: string; state: string; projectType: string; status: string; estimatedValue: number | null;
+  billedAmount?: number | null; receivedAmount?: number | null;
   startDate?: string | null; endDate?: string | null; followUpAt?: string | null; source: string; notes: string;
   createdAt: string; updatedAt: string;
+};
+
+export type SessionDoc = { sidHash: string; ip: string; agent: string; lastSeenAt: Date; expiresAt: Date; revokedAt: Date | null; createdAt: Date };
+export type AuditDoc = { at: Date; action: string; detail: string; ip: string; agent: string };
+export type RateDoc = {
+  item: string; group: string; spec: string; unit: string; rate: number; supplierName: string; supplierContactId: string;
+  city: string; state: string; validTill: Date | null; notes: string; createdAt: Date; updatedAt: Date;
+};
+export type DataRoomDoc = {
+  token: string; title: string; recipientName: string; recipientContact: string; message: string; dataset: "contacts" | "rates";
+  columns: { key: string; label: string }[]; rows: Record<string, string>[]; rowCount: number; masked: boolean;
+  active: boolean; expiresAt: Date; passcodeHash: string; failedAttempts: number; lockedUntil: Date | null;
+  maxViews: number | null; viewCount: number; allowDownload: boolean; watermark: boolean;
+  price: number | null; paymentStatus: string; paidAt: Date | null; requirePayment: boolean; invoiceNote: string;
+  lastViewedAt: Date | null; accessLog: { at: Date; kind: string; ip: string; agent: string }[]; createdAt: Date; updatedAt: Date;
+};
+
+export type RateRecord = {
+  _id: string; item: string; group: string; spec: string; unit: string; rate: number; supplierName: string; supplierContactId: string;
+  city: string; state: string; validTill?: string | null; notes: string; createdAt: string; updatedAt: string;
+};
+export type RoomRecord = {
+  _id: string; title: string; recipientName: string; recipientContact: string; message: string; dataset: "contacts" | "rates"; rowCount: number; masked: boolean;
+  active: boolean; expiresAt: string; hasPasscode: boolean; maxViews: number | null; viewCount: number; allowDownload: boolean; watermark: boolean;
+  price: number | null; paymentStatus: string; paidAt?: string | null; requirePayment: boolean; invoiceNote: string; lastViewedAt?: string | null;
+  status: string; shareUrl: string; createdAt: string; accessLog?: { at: string; kind: string; ip: string; agent: string }[];
+  columns?: { key: string; label: string }[]; preview?: Record<string, string>[];
 };

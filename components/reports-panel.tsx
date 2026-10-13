@@ -5,7 +5,7 @@ import { categoryLabel, contactStatuses } from "@/lib/categories";
 import { formatINR } from "@/lib/format";
 import { projectStatusLabel } from "@/lib/projects";
 import { buildReport, type Count } from "@/lib/reports";
-import type { ContactRecord, ProjectRecord, ShareLinkRecord } from "@/lib/types";
+import type { ContactRecord, ProjectRecord, RoomRecord, ShareLinkRecord } from "@/lib/types";
 
 function Bars({ rows, label, empty = "No data yet." }: { rows: Count[]; label: (key: string) => string; empty?: string }) {
   const max = Math.max(1, ...rows.map((row) => row.count));
@@ -13,8 +13,8 @@ function Bars({ rows, label, empty = "No data yet." }: { rows: Count[]; label: (
   return <div className="rp-bars">{rows.map((row) => <div className="rp-bar-row" key={row.key}><span className="rp-bar-label">{label(row.key)}</span><span className="rp-bar-track"><i style={{ width: `${Math.max(3, Math.round((row.count / max) * 100))}%` }} /></span><b>{row.count}</b></div>)}</div>;
 }
 
-export default function ReportsPanel({ contacts, projects, links, duplicateCount }: { contacts: ContactRecord[]; projects: ProjectRecord[]; links: ShareLinkRecord[]; duplicateCount: number }) {
-  const report = useMemo(() => buildReport(contacts, projects, links), [contacts, projects, links]);
+export default function ReportsPanel({ contacts, projects, links, rooms = [], duplicateCount }: { contacts: ContactRecord[]; projects: ProjectRecord[]; links: ShareLinkRecord[]; rooms?: RoomRecord[]; duplicateCount: number }) {
+  const report = useMemo(() => buildReport(contacts, projects, links, new Date(), rooms), [contacts, projects, links, rooms]);
   const statusLabel = (key: string) => contactStatuses.find((s) => s.value === key)?.label || key;
   const sourceLabel = (key: string) => key === "public-link" ? "Public form link" : key === "import" ? "Imported file" : "Added manually";
   const monthMax = Math.max(1, ...report.addedPerMonth.map((m) => m.count));
@@ -24,6 +24,12 @@ export default function ReportsPanel({ contacts, projects, links, duplicateCount
       <article><span>Open leads</span><strong>{report.openLeads}</strong><small>Pipeline {formatINR(report.pipelineValue)}</small></article>
       <article><span>Projects won</span><strong>{report.wonProjects}</strong><small>Ongoing + completed</small></article>
       <article><span>Follow-ups overdue</span><strong>{report.followUpsOverdueContacts + report.followUpsOverdueProjects}</strong><small>{report.followUpsOverdueContacts} contacts · {report.followUpsOverdueProjects} projects</small></article>
+    </div>
+    <div className="pr-tiles">
+      <article><span>Billed to clients</span><strong>{formatINR(report.billedTotal)}</strong><small>Across all projects</small></article>
+      <article><span>Money received</span><strong>{formatINR(report.receivedTotal)}</strong><small>From project billing</small></article>
+      <article><span>Still to collect</span><strong>{formatINR(report.outstanding)}</strong><small>Billed minus received</small></article>
+      <article><span>Data sold</span><strong>{formatINR(report.dataSold)}</strong><small>{report.dataPending ? `${formatINR(report.dataPending)} unpaid · ` : ""}{report.liveRooms} live link(s)</small></article>
     </div>
     <div className="rp-grid">
       <section className="panel rp-card"><h2>Contacts by category</h2><Bars rows={report.byCategory} label={categoryLabel} /></section>

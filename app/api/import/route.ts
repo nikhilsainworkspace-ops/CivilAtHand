@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/auth";
+import { audit } from "@/lib/audit";
 import { dbConnect } from "@/lib/db";
 import { categories, contactStatuses, getFields } from "@/lib/categories";
 import { cleanText } from "@/lib/contact-input";
@@ -211,6 +212,7 @@ export async function POST(request: Request) {
       const result = await Contact.insertMany(toInsert, { ordered: true });
       created = result.length;
     }
+    await audit(request, "data-imported", `${created} contacts created`);
     return NextResponse.json({
       ok: true,
       created,

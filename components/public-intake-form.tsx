@@ -14,6 +14,7 @@ export default function PublicIntakeForm({ token }: { token: string }) {
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
+  const [shareConsent, setShareConsent] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -30,7 +31,7 @@ export default function PublicIntakeForm({ token }: { token: string }) {
     event.preventDefault(); if (!form) return;
     setSending(true); setError("");
     try {
-      const response = await fetch(`/api/public/${token}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ details: values, website: values.__website || "" }) });
+      const response = await fetch(`/api/public/${token}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ details: values, website: values.__website || "", shareConsent }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Please check your details and try again.");
       setDone(true);
@@ -57,6 +58,7 @@ export default function PublicIntakeForm({ token }: { token: string }) {
           <label className="honeypot" aria-hidden="true">Website<input tabIndex={-1} autoComplete="off" value={values.__website || ""} onChange={(event) => change("__website", event.target.value)} /></label>
         </div>
         {error ? <div role="alert" className="form-error">{error}</div> : null}
+        <label className="form-consent form-consent-share"><input type="checkbox" checked={shareConsent} onChange={(event) => setShareConsent(event.target.checked)} /><p><strong>Optional:</strong> I also agree that my business details may be shared with companies looking for this kind of service. / मेरी जानकारी इस सेवा की तलाश करने वाली कंपनियों के साथ साझा की जा सकती है (वैकल्पिक)।</p></label>
         <div className="form-consent"><span className="consent-check">✓</span><p>By submitting, you agree that these details may be used to contact you about relevant civil-work opportunities. / फ़ॉर्म भेजकर आप संबंधित काम के लिए संपर्क किए जाने की सहमति देते हैं।</p></div>
         <button className="primary-button submit-button" type="submit" disabled={sending}>{sending ? "Submitting… / भेज रहे हैं…" : "Submit details / जानकारी भेजें"}<span>↗</span></button>
         <p className="privacy-foot">Your information is shared with the network owner, not displayed publicly.</p>

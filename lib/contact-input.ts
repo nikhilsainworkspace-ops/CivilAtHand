@@ -25,7 +25,12 @@ export function normalizeContactInput(payload: Record<string, unknown>) {
   const status = validStatuses.includes(String(payload.status)) ? String(payload.status) : "new";
   const followUp = cleanText(payload.followUpAt, 40);
   const followUpAt = followUp && !Number.isNaN(Date.parse(followUp)) ? new Date(followUp) : null;
+  const extra: { rating?: number; flag?: string; shareConsent?: string } = {};
+  if ("rating" in payload) { const r = Math.round(Number(payload.rating)); extra.rating = Number.isFinite(r) ? Math.min(5, Math.max(0, r)) : 0; }
+  if ("flag" in payload) extra.flag = ["preferred", "avoid"].includes(String(payload.flag)) ? String(payload.flag) : "";
+  if ("shareConsent" in payload) extra.shareConsent = ["yes", "no"].includes(String(payload.shareConsent)) ? String(payload.shareConsent) : "";
   return {
+    ...extra,
     category,
     name,
     phone,

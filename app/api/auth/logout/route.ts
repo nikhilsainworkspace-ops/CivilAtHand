@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
-import { clearAdminCookie } from "@/lib/auth";
+import { endSession } from "@/lib/auth";
+import { audit } from "@/lib/audit";
 
-export async function POST() {
-  await clearAdminCookie();
+export const runtime = "nodejs";
+export async function POST(request: Request) {
+  await endSession();
+  await audit(request, "logout");
   return NextResponse.json({ ok: true });
 }

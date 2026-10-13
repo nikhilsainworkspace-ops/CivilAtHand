@@ -5,6 +5,9 @@ import { dbConnect } from "@/lib/db";
 import { categories, getFields, categoryLabel } from "@/lib/categories";
 import { cellString, escapeCsv } from "@/lib/csv";
 import { projectStatusLabel } from "@/lib/projects";
+import { audit } from "@/lib/audit";
+import { rateGroupLabel } from "@/lib/rates";
+import { Rate } from "@/models/Rate";
 import { Contact } from "@/models/Contact";
 import { Project } from "@/models/Project";
 
@@ -22,7 +25,7 @@ const baseColumns: Column[] = [
 const projectColumns: Column[] = [
   { key: "title", header: "Project / Lead" }, { key: "statusLabel", header: "Status" }, { key: "clientName", header: "Client" },
   { key: "projectType", header: "Type" }, { key: "city", header: "City" }, { key: "state", header: "State" },
-  { key: "estimatedValue", header: "Estimated Value (INR)" }, { key: "startDate", header: "Start Date" }, { key: "endDate", header: "End Date" },
+  { key: "estimatedValue", header: "Estimated Value (INR)" }, { key: "billedAmount", header: "Billed (INR)" }, { key: "receivedAmount", header: "Received (INR)" }, { key: "outstanding", header: "Outstanding (INR)" }, { key: "startDate", header: "Start Date" }, { key: "endDate", header: "End Date" },
   { key: "followUpAt", header: "Follow-up Date" }, { key: "source", header: "Lead Source" }, { key: "notes", header: "Notes" },
   { key: "createdAt", header: "Created At" }, { key: "updatedAt", header: "Updated At" },
 ];
@@ -53,12 +56,42 @@ export async function GET(request: Request) {
     try {
       await dbConnect();
       const projects = (await Project.find().sort({ updatedAt: -1 }).limit(5000).lean()) as unknown as Record<string, unknown>[];
-      const rows = projects.map((project) => ({ ...project, statusLabel: projectStatusLabel(String(project.status || "")) }));
+      const rows = projects.map((project) => ({ ...project, statusLabel: projectStatusLabel(String(project.status || "")), outstanding: Math.max(0, Number(project.billedAmount || 0) - Number(project.receivedAmount || 0)) || "" }));
       return await fileResponse(format, projectColumns, rows, "civil-at-hand-projects", "Projects");
     } catch (error) {
       console.error("Project export error:", error);
       return NextResponse.json({ error: "Could not export projects. Check the database connection." }, { status: 503 });
     }
+  }
+
+  if (url.searchParams.get("scope") === "rates") {
+    try {
+      await dbConnect();
+      const rates = (await Rate.find().sort({ item: 1 }).limit(10_000).lean()) as unknown as Record<string, unknown>[];
+      const rows = rates.map((rate) => ({ ...rate, groupLabel: rateGroupLabel(String(rate.group || "")) }));
+      const rateColumns: Column[] = [
+        { key: "item", header: "Item" }, { key: "groupLabel", header: "Type" }, { key: "spec", header: "Brand / Grade / Size" }, { key: "unit", header: "Unit" }, { key: "rate", header: "Rate (INR)" },
+        { key: "supplierName", header: "Supplier" }, { key: "city", header: "City" }, { key: "state", header: "State" }, { key: "validTill", header: "Valid Till" }, { key: "notes", header: "Notes" }, { key: "updatedAt", header: "Updated At" },
+      ];
+      await audit(request, "data-exported", `${rows.length} rates`);
+      return await fileResponse(format, rateColumns, rows, "civil-at-hand-rate-book", "Rates");
+    } catch (error) {
+      console.error("Rate export error:", error);
+      return NextResponse.json({ error: "Could not export rates. Check the database connection." }, { status: 503 });
+    }
+  }
+
+  // A blank file with the right column names and two example rows, ready to fill in and import.
+  if (url.searchParams.get("scope") === "template") {
+    const templateColumns: Column[] = [
+      { key: "name", header: "Name" }, { key: "category", header: "Category" }, { key: "phone", header: "Phone" }, { key: "whatsapp", header: "WhatsApp" }, { key: "email", header: "Email" },
+      { key: "organization", header: "Business / Company" }, { key: "city", header: "City" }, { key: "state", header: "State" }, { key: "workingLocations", header: "Working / Delivery Locations" }, { key: "notes", header: "Notes" },
+    ];
+    const examples = [
+      { name: "Example Manpower Services", category: "manpower-supplier", phone: "9876500001", whatsapp: "9876500001", email: "", organization: "Example Manpower Services", city: "Ludhiana", state: "Punjab", workingLocations: "Punjab, Haryana", notes: "Delete this example row" },
+      { name: "Example Cement Traders", category: "vendor-supplier", phone: "9876500002", whatsapp: "", email: "sales@example.com", organization: "Example Cement Traders", city: "Chandigarh", state: "Chandigarh", workingLocations: "Tricity", notes: "Delete this example row" },
+    ];
+    return await fileResponse(format, templateColumns, examples, "civil-at-hand-import-template", "Import template");
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -99,6 +132,7 @@ export async function GET(request: Request) {
       for (const key of customKeys) row[`details.${key}`] = details[key];
       return row;
     });
+    await audit(request, "data-exported", `${rows.length} contacts`);
     return await fileResponse(format, columns, rows, "civil-at-hand-contacts", "Contacts");
   } catch (error) {
     console.error("Contact export error:", error);

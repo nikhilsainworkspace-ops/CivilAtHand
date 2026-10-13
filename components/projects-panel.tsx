@@ -31,6 +31,8 @@ export function ProjectModal({ initial, contacts, onClose, onSave, saving }: { i
   const [projectType, setProjectType] = useState(initial?.projectType || "");
   const [city, setCity] = useState(initial?.city || "");
   const [state, setState] = useState(initial?.state || "");
+  const [billed, setBilled] = useState(initial?.billedAmount !== null && initial?.billedAmount !== undefined ? String(initial.billedAmount) : "");
+  const [received, setReceived] = useState(initial?.receivedAmount !== null && initial?.receivedAmount !== undefined ? String(initial.receivedAmount) : "");
   const [value, setValue] = useState(initial?.estimatedValue !== null && initial?.estimatedValue !== undefined ? String(initial.estimatedValue) : "");
   const [startDate, setStartDate] = useState(dateInput(initial?.startDate));
   const [endDate, setEndDate] = useState(dateInput(initial?.endDate));
@@ -45,7 +47,7 @@ export function ProjectModal({ initial, contacts, onClose, onSave, saving }: { i
     event.preventDefault();
     setFormError("");
     try {
-      await onSave({ title, status, clientName, clientContactId, linkedContactIds: linked, projectType, city, state, estimatedValue: value, startDate, endDate, followUpAt, source, notes });
+      await onSave({ title, status, clientName, clientContactId, linkedContactIds: linked, projectType, city, state, estimatedValue: value, billedAmount: billed, receivedAmount: received, startDate, endDate, followUpAt, source, notes });
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Could not save this project.");
     }
@@ -66,6 +68,8 @@ export function ProjectModal({ initial, contacts, onClose, onSave, saving }: { i
           <label className="field-wrap"><span>City / शहर</span><input value={city} onChange={(event) => setCity(event.target.value)} maxLength={120} /></label>
           <label className="field-wrap"><span>State / राज्य</span><input value={state} onChange={(event) => setState(event.target.value)} maxLength={120} /></label>
           <label className="field-wrap"><span>Estimated value (₹) / अनुमानित राशि</span><input inputMode="numeric" value={value} onChange={(event) => setValue(event.target.value)} placeholder="e.g. 2500000" /></label>
+          <label className="field-wrap"><span>Billed so far (₹)</span><input inputMode="numeric" value={billed} onChange={(event) => setBilled(event.target.value)} placeholder="Total invoiced" /></label>
+          <label className="field-wrap"><span>Received so far (₹)</span><input inputMode="numeric" value={received} onChange={(event) => setReceived(event.target.value)} placeholder="Payments collected" /></label>
           <label className="field-wrap"><span>Lead source / जानकारी कहाँ से मिली</span><input value={source} onChange={(event) => setSource(event.target.value)} maxLength={120} placeholder="Referral, WhatsApp, site visit…" /></label>
           <label className="field-wrap"><span>Start date / शुरू होने की तारीख</span><input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
           <label className="field-wrap"><span>End date / पूरा होने की तारीख</span><input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>
@@ -111,6 +115,7 @@ export default function ProjectsPanel({ projects, contacts, onEdit, onDelete, on
       <article><span>Open leads</span><strong>{open.length}</strong><small>Lead · Quoted · Negotiation</small></article>
       <article><span>Pipeline value</span><strong>{formatINR(pipeline)}</strong><small>Estimated, open leads</small></article>
       <article><span>Ongoing projects</span><strong>{ongoing.length}</strong><small>{formatINR(ongoing.reduce((sum, p) => sum + (p.estimatedValue || 0), 0))} value</small></article>
+      <article><span>To collect</span><strong>{formatINR(projects.reduce((sum, p) => sum + Math.max(0, (p.billedAmount || 0) - (p.receivedAmount || 0)), 0))}</strong><small>Billed minus received</small></article>
       <article><span>Completed</span><strong>{projects.filter((p) => p.status === "completed").length}</strong><small>All time</small></article>
     </div>
     <section className="panel pr-panel">
@@ -125,7 +130,7 @@ export default function ProjectsPanel({ projects, contacts, onEdit, onDelete, on
           <td><select className={`pr-stage pr-stage-${p.status}`} value={p.status} aria-label={`Stage for ${p.title}`} onChange={(event) => void onStatus(p, event.target.value)}>{projectStatuses.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></td>
           <td>{p.clientName || (p.clientContactId ? names.get(p.clientContactId) : "") || "—"}</td>
           <td>{[p.city, p.state].filter(Boolean).join(", ") || "—"}</td>
-          <td>{formatINR(p.estimatedValue)}</td>
+          <td>{formatINR(p.estimatedValue)}{(p.billedAmount || 0) > (p.receivedAmount || 0) ? <small className="rt-unit"> · {formatINR((p.billedAmount || 0) - (p.receivedAmount || 0))} due</small> : null}</td>
           <td><span className={overdue ? "pr-overdue" : ""}>{p.followUpAt ? shortDate(p.followUpAt) : "—"}{overdue ? " · overdue" : ""}</span></td>
           <td><div className="row-actions"><button className="icon-button row-edit" onClick={() => onEdit(p)} title="View / edit" aria-label={`Edit ${p.title}`}>✎</button><button className="icon-button row-delete" onClick={() => onDelete(p)} title="Delete" aria-label={`Delete ${p.title}`}>🗑</button></div></td>
         </tr>; })}</tbody></table></div>

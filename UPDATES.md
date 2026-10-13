@@ -1,3 +1,24 @@
+# Civil At Hand: version 3.0 update notes
+
+Everything from version 2 still works. No data migration is needed: every new database field is optional, existing records and existing `/join/<token>` links are untouched, and `MONGODB_DB` handling is unchanged.
+
+## New
+- **Shared databases** (new `DataRoom` collection, page `/shared/<token>`): sell or share a frozen copy of selected contacts or rates through a private link with required expiry, passcode (scrypt-hashed), open limit, watermark, download switch, price / paid / unpaid tracking, "locked until paid", pause, extend, reset passcode, and an access log.
+- **Consent to share:** per-contact "may be shared with clients" (Yes / No / not recorded), an optional checkbox on public forms, and sharing that skips contacts without consent by default. "No" is never shared.
+- **Rate book** (new `Rate` collection): rates, supplier comparison, stale flags, export, sharing.
+- **Security centre:** 2-step verification (authenticator app), server-side sessions with signed-in devices and real sign-out, idle expiry, browser auto-lock, activity log (180 days), full JSON backup, cross-site request blocking, Content-Security-Policy, `__Host-` cookie.
+- **Productivity:** bulk actions, merge duplicates, per-contact history (calls, meetings, site visits), 1-5 rating, Preferred / Avoid flag, import template, "Hide numbers" privacy button, project billed / received / to-collect, receivables and data sales in Reports.
+- Per-device rate limits on public form submissions and client-link requests.
+
+## Changed
+- Login now uses a MongoDB-backed session. **You will be signed out once after deploying** (old cookies are not valid). `ADMIN_SESSION_SECRET` is still required.
+- New optional environment variables: `ADMIN_TOTP_SECRET`, `ADMIN_SESSION_HOURS`, `ADMIN_IDLE_MINUTES` (see `.env.example`).
+- Exports and imports are written to the activity log. Contact list responses no longer include the per-contact history (loaded on demand).
+
+## Developer notes
+- `npm run check` runs typecheck, unit tests and the access-gate integration test (`tests/integration`, uses Node's experimental module mocking).
+- Browser-safe room code lives in `lib/room-shared.ts`; `lib/rooms.ts` uses Node crypto and must not be imported by client components.
+
 # Civil At Hand: version 2.0 update notes
 
 Everything from version 1 still works (dashboard, login, contacts, 10 categories, public bilingual forms, share links, import, filtered export, WhatsApp/email, PDF print, manifest, logo pack). Records and `/join/<token>` links are untouched: no field was renamed or removed.

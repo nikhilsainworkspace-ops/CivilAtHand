@@ -11,6 +11,8 @@ const ProjectSchema = new Schema({
   projectType: { type: String, trim: true, maxlength: 120, default: "" },
   status: { type: String, enum: ["lead", "quoted", "negotiation", "ongoing", "completed", "on-hold", "lost"], default: "lead", index: true },
   estimatedValue: { type: Number, min: 0, default: null },
+  billedAmount: { type: Number, min: 0, default: null },
+  receivedAmount: { type: Number, min: 0, default: null },
   startDate: { type: Date, default: null },
   endDate: { type: Date, default: null },
   followUpAt: { type: Date, default: null },

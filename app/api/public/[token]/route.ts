@@ -4,6 +4,7 @@ import { brand } from "@/lib/brand";
 import { getCategory, getFields } from "@/lib/categories";
 import { normalizeContactInput } from "@/lib/contact-input";
 import { InputError } from "@/lib/errors";
+import { tooManyRequests } from "@/lib/rate-limit";
 import { Contact } from "@/models/Contact";
 import { ShareLink } from "@/models/ShareLink";
 
@@ -38,12 +39,13 @@ export async function POST(request: Request, context: Context) {
     const body = await request.json() as Record<string, unknown>;
     // Simple honeypot to filter automated submissions without adding friction for people.
     if (typeof body.website === "string" && body.website.trim()) return NextResponse.json({ ok: true });
+    if (await tooManyRequests(request, "public-form", 20, 3600)) return NextResponse.json({ error: "Too many submissions from this device. Please try again later. / इस डिवाइस से बहुत अधिक सबमिशन हुए, कृपया बाद में कोशिश करें।" }, { status: 429 });
     await dbConnect();
     const link = await ShareLink.findOne({ token, active: true });
     if (!link || (link.expiresAt && link.expiresAt.getTime() < Date.now())) {
       return NextResponse.json({ error: "This form link is closed or has expired." }, { status: 404 });
     }
-    const normalized = normalizeContactInput({ category: link.category, details: body.details, source: "public-link", linkId: String(link._id), status: "new" });
+    const normalized = normalizeContactInput({ category: link.category, details: body.details, source: "public-link", linkId: String(link._id), status: "new", shareConsent: body.shareConsent === true ? "yes" : "" });
     const contact = await Contact.create(normalized);
     await ShareLink.updateOne({ _id: link._id }, { $inc: { submissions: 1 } });
     return NextResponse.json({ ok: true, reference: String(contact._id) }, { status: 201 });
