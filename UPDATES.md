@@ -1,12 +1,14 @@
 # Civil At Hand: incremental productivity/security update
 
-This update is additive. It keeps existing contacts, projects, rates, links, shared databases, exports and security screens. Merge only the files contained in the incremental ZIP into the repository root; allow overwriting files with matching paths. No data migration or new environment variable is needed for the Task Planner.
+This update is additive. It keeps existing contacts, projects, rates, links, shared databases, exports and security screens. Merge only the files contained in the incremental ZIP into the repository root; allow overwriting files with matching paths. No data migration or new environment variable is needed for the Task Planner or Private Notes.
 
 ## Added
 - **Persistent Task Planner** (`Task` collection): create, edit, search and filter tasks; due dates, priority, status, notes, and optional links to existing contacts/projects; overdue-first sorting; completion/reopen controls; overdue badge, overview summary, CSV export and activity-log entries.
-- **Protected task APIs** (`/api/tasks` and `/api/tasks/[id]`): admin-only list/create/update/status/delete, validation, no-store responses and input limits. Existing endpoints are unchanged.
-- **Authenticator replay-race hardening:** the accepted TOTP time step is now atomically claimed after the password is valid, preventing two parallel login requests from both accepting the same code.
-- Added task input tests and added the missing `.gitignore` / `.env.example` entries expected by the README. `.env.example` contains placeholders only.
+- **Private Notes** (`PrivateNote` collection): admin-only create, edit, search, tag, pin, archive/restore, copy, Markdown export and permanent delete. Notes are protected by the existing admin session and are not exposed to public forms or shared database links.
+- **Protected private-note APIs** (`/api/notes` and `/api/notes/[id]`): admin-only CRUD/actions, input size validation, no-store responses and audit entries that record note actions without note titles or bodies.
+- **Complete backup coverage:** the existing full JSON backup adds `tasks` and `privateNotes` while preserving existing backup sections.
+- **Authenticator replay-race hardening:** the accepted TOTP time step is atomically claimed after the password is valid, preventing parallel login requests from both accepting the same code.
+- Added task and private-note input tests and added the missing `.gitignore` / `.env.example` entries expected by the README. `.env.example` contains placeholders only.
 
 ## Verification
 Run `npm run typecheck`, `npm test`, `npm run lint`, and `npm run build` after merging. This ZIP is an incremental source patch, not a compiled deployment artifact.

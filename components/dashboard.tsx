@@ -6,7 +6,7 @@ import { brand } from "@/lib/brand";
 import { dateKey, type FollowUpItem } from "@/lib/followups";
 import { duplicateIdSet } from "@/lib/duplicates";
 import { shortDate as dateOnly } from "@/lib/format";
-import type { ContactRecord, ProjectRecord, RateRecord, RoomRecord, ShareLinkRecord, TaskRecord } from "@/lib/types";
+import type { ContactRecord, ProjectRecord, RateRecord, RoomRecord, ShareLinkRecord, TaskRecord, PrivateNoteRecord } from "@/lib/types";
 import FollowUpsPanel from "@/components/followups-panel";
 import ProjectsPanel, { ProjectModal } from "@/components/projects-panel";
 import ReportsPanel from "@/components/reports-panel";
@@ -16,10 +16,11 @@ import SecurityPanel from "@/components/security-panel";
 import MergeModal from "@/components/merge-modal";
 import InteractionLog from "@/components/interaction-log";
 import TasksPanel from "@/components/tasks-panel";
+import PrivateNotesPanel from "@/components/private-notes-panel";
 
 type Session = { authenticated: boolean; configured: boolean; appName: string; twoFactor?: boolean };
 type Toast = { type: "success" | "error" | "info"; message: string };
-type Tab = "overview" | "followups" | "tasks" | "contacts" | "projects" | "rates" | "rooms" | "reports" | "links" | "security" | "settings";
+type Tab = "overview" | "followups" | "tasks" | "notes" | "contacts" | "projects" | "rates" | "rooms" | "reports" | "links" | "security" | "settings";
 
 const brandName = brand.name;
 const brandTagline = brand.tagline;
@@ -49,7 +50,7 @@ function relativeDate(value?: string) { if (!value) return "No date"; const date
 function statusLabel(status: string) { return contactStatuses.find((item) => item.value === status)?.label || status; }
 function StatusPill({ status }: { status: string }) { return <span className={`status-pill status-${status}`}>{statusLabel(status)}</span>; }
 function BrandMark({ large = false }: { large?: boolean }) { return brandLogo ? <img className={large ? "brand-logo-large" : "brand-logo"} src={brandLogo} alt={`${brandName} logo`} /> : <span className={`brand-mark ${large ? "large-mark" : ""}`} aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M4 25h24M7 25V13l9-7 9 7v12M12 25v-8h8v8" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"/><path d="M11 13h2m6 0h2" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"/></svg></span>; }
-function Icon({ name }: { name: "overview" | "contacts" | "links" | "settings" | "search" | "plus" | "download" | "external" | "edit" | "trash" | "copy" | "check" | "lock" | "logout" | "database" | "users" | "calendar" | "arrow" | "filter" | "share" | "mail" | "upload" | "briefcase" | "chart" }) {
+function Icon({ name }: { name: "overview" | "contacts" | "links" | "settings" | "search" | "plus" | "download" | "external" | "edit" | "trash" | "copy" | "check" | "lock" | "logout" | "database" | "users" | "calendar" | "arrow" | "filter" | "share" | "mail" | "upload" | "briefcase" | "chart" | "note" }) {
   const paths: Record<string, ReactNode> = {
     overview: <><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></>,
     contacts: <><path d="M16 20c0-3-2.5-5-6-5s-6 2-6 5v1h12z"/><circle cx="10" cy="8" r="4"/><path d="M16 4.5a4 4 0 0 1 0 7.5M18 15c2.8.4 4 2.1 4 4.3V21h-4"/></>,
@@ -58,7 +59,7 @@ function Icon({ name }: { name: "overview" | "contacts" | "links" | "settings" |
     search: <><circle cx="10.8" cy="10.8" r="6.3"/><path d="m16 16 4.5 4.5"/></>,
     plus: <><path d="M12 5v14M5 12h14"/></>, download: <><path d="M12 3v12m-5-5 5 5 5-5"/><path d="M4 17v4h16v-4"/></>, external: <><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></>,
     edit: <><path d="m14 5 5 5M4 20l4.2-.8L19 8.4a2.1 2.1 0 0 0-3-3L5.2 16.2 4 20z"/></>, trash: <><path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"/></>, copy: <><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></>, check: <path d="m5 12 4 4L19 6"/>, lock: <><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 1 1 8 0v3"/></>, logout: <><path d="M10 17l5-5-5-5M15 12H3"/><path d="M12 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6"/></>, database: <><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></>, users: <><circle cx="9" cy="8" r="3.5"/><path d="M2 20v-1a7 7 0 0 1 14 0v1M16 5.5a3.5 3.5 0 0 1 0 6.8M18 15a5.2 5.2 0 0 1 4 5"/></>, calendar: <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></>, arrow: <><path d="M5 12h14M13 6l6 6-6 6"/></>, filter: <><path d="M3 5h18M6 12h12M10 19h4"/></>, share: <><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/></>, mail: <><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></>, upload: <><path d="M12 16V4m-5 5 5-5 5 5"/><path d="M4 16v4h16v-4"/></>,
-    briefcase: <><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18"/></>, chart: <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></>,
+    briefcase: <><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18"/></>, chart: <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></>, note: <><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h6"/></>,
   };
   return <svg className="icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 }
@@ -130,6 +131,7 @@ export default function Dashboard() {
   const [toast, setToast] = useState<Toast | null>(null);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
+  const [notes, setNotes] = useState<PrivateNoteRecord[]>([]);
   const [modalProject, setModalProject] = useState<ProjectRecord | null | "new">(null);
   const [savingProject, setSavingProject] = useState(false);
   const [onlyDuplicates, setOnlyDuplicates] = useState(false);
@@ -143,7 +145,7 @@ export default function Dashboard() {
   const lastActivity = useRef(Date.now());
   useEffect(() => { try { const saved = window.localStorage.getItem("cah-autolock"); const value = Number(saved); if (saved !== null && [0, 5, 15, 30, 60].includes(value)) setAutoLock(value); } catch { /* storage blocked: keep the default */ } }, []);
   useEffect(() => {
-    const onUnauthorized = () => setSession((current) => current && current.authenticated ? { ...current, authenticated: false } : current);
+    const onUnauthorized = () => { setNotes([]); setSession((current) => current && current.authenticated ? { ...current, authenticated: false } : current); };
     window.addEventListener("cah-unauthorized", onUnauthorized);
     return () => window.removeEventListener("cah-unauthorized", onUnauthorized);
   }, []);
@@ -166,10 +168,10 @@ export default function Dashboard() {
   const notify = useCallback((message: string, type: Toast["type"] = "success") => setToast({ message, type }), []);
   const loadData = useCallback(async (showError = true) => {
     try {
-      const [contactData, linkData, projectData, roomData, rateData, healthData, taskData] = await Promise.all([
-        jsonRequest("/api/contacts?limit=5000"), jsonRequest("/api/links"), jsonRequest("/api/projects").catch(() => ({ projects: [] })), jsonRequest("/api/rooms").catch(() => ({ rooms: [] })), jsonRequest("/api/rates").catch(() => ({ rates: [] })), jsonRequest("/api/health").catch((error) => ({ database: "error", message: error.message })), jsonRequest("/api/tasks").catch(() => ({ tasks: [] })),
+      const [contactData, linkData, projectData, roomData, rateData, healthData, taskData, noteData] = await Promise.all([
+        jsonRequest("/api/contacts?limit=5000"), jsonRequest("/api/links"), jsonRequest("/api/projects").catch(() => ({ projects: [] })), jsonRequest("/api/rooms").catch(() => ({ rooms: [] })), jsonRequest("/api/rates").catch(() => ({ rates: [] })), jsonRequest("/api/health").catch((error) => ({ database: "error", message: error.message })), jsonRequest("/api/tasks").catch(() => ({ tasks: [] })), jsonRequest("/api/notes"),
       ]);
-      setContacts(contactData.contacts || []); setLinks(linkData.links || []); setProjects(projectData.projects || []); setRooms(roomData.rooms || []); setRates(rateData.rates || []); setHealth(healthData); setTasks(taskData.tasks || []);
+      setContacts(contactData.contacts || []); setLinks(linkData.links || []); setProjects(projectData.projects || []); setRooms(roomData.rooms || []); setRates(rateData.rates || []); setHealth(healthData); setTasks(taskData.tasks || []); setNotes(noteData.notes || []);
     } catch (error) { if (showError) notify(error instanceof Error ? error.message : "Could not load the dashboard.", "error"); }
   }, [notify]);
 
@@ -183,7 +185,7 @@ export default function Dashboard() {
     try { await jsonRequest("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password, code }) }); lastActivity.current = Date.now(); setSession((current) => ({ authenticated: true, configured: true, appName: brandName, twoFactor: current?.twoFactor })); setToast(null); setTab("overview"); await loadData(); }
     catch (error) { notify(error instanceof Error ? error.message : "Could not sign in.", "error"); throw error; }
   }
-  async function logout() { try { await jsonRequest("/api/auth/logout", { method: "POST" }); } finally { setSession((current) => current ? { ...current, authenticated: false } : current); setContacts([]); setLinks([]); setProjects([]); setRooms([]); setRates([]); setTasks([]); setSelectedIds([]); setRoomCreate(null); setMergeOpen(false); setToast(null); } }
+  async function logout() { try { await jsonRequest("/api/auth/logout", { method: "POST" }); } finally { setSession((current) => current ? { ...current, authenticated: false } : current); setContacts([]); setLinks([]); setProjects([]); setRooms([]); setRates([]); setTasks([]); setNotes([]); setSelectedIds([]); setRoomCreate(null); setMergeOpen(false); setToast(null); } }
 
   async function saveContact(payload: Record<string, unknown>) {
     setSaving(true);
@@ -348,6 +350,7 @@ export default function Dashboard() {
     overview: { title: "Overview", subtitle: "A clear view of the people and resources in your network." },
     followups: { title: "Follow-ups", subtitle: "Who to call or message next. Overdue and upcoming reminders in one list." },
     tasks: { title: "Task planner", subtitle: "Plan site work, quotations, document collection and business actions. Tasks stay saved in your database." },
+    notes: { title: "Private notes", subtitle: "Create, organise, pin and archive your own notes. Notes are private to your signed-in admin workspace." },
     contacts: { title: "Contact database", subtitle: "Keep every supplier, contractor, partner and client in one place." },
     projects: { title: "Projects & leads", subtitle: "Track every enquiry from first contact to completed work." },
     rates: { title: "Rate book", subtitle: "Material, labour and equipment rates, and who quoted them." },
@@ -359,7 +362,7 @@ export default function Dashboard() {
   };
   return <main className={`app-shell ${privacy ? "privacy-on" : ""}`} style={{ "--brand": brandColor } as CSSProperties}>
     <aside className="sidebar"><div className="sidebar-brand"><BrandMark /><div className="brand-copy"><strong>{brandName}</strong><small>WORKSPACE</small></div></div>
-      <div className="sidebar-section-label">WORKSPACE</div><nav className="sidebar-nav" aria-label="Main navigation">{([ ["overview", "Overview"], ["followups", "Follow-ups"], ["tasks", "Task planner"], ["contacts", "Contact database"], ["projects", "Projects & leads"], ["rates", "Rate book"], ["rooms", "Shared databases"], ["reports", "Reports"], ["links", "Public form links"], ["security", "Security"], ["settings", "Settings"] ] as [Tab, string][]).map(([value, label]) => <button className={`nav-item ${tab === value ? "nav-item-active" : ""}`} key={value} onClick={() => setTab(value)}><Icon name={value === "rates" ? "database" : value === "rooms" ? "share" : value === "security" ? "lock" : value === "contacts" ? "contacts" : value === "links" ? "links" : value === "settings" ? "settings" : value === "followups" || value === "tasks" ? "calendar" : value === "projects" ? "briefcase" : value === "reports" ? "chart" : "overview"} /><span>{label}</span>{value === "contacts" && contacts.length > 0 ? <small>{contacts.length}</small> : value === "links" && links.length > 0 ? <small>{links.length}</small> : value === "projects" && projects.length > 0 ? <small>{projects.length}</small> : value === "rooms" && rooms.length > 0 ? <small>{rooms.length}</small> : value === "rates" && rates.length > 0 ? <small>{rates.length}</small> : value === "followups" && counts.followUps > 0 ? <small className="nav-alert">{counts.followUps}</small> : value === "tasks" && tasks.filter((task) => task.status !== "done" && task.status !== "cancelled" && task.dueAt && new Date(task.dueAt).getTime() < new Date(new Date().toDateString()).getTime()).length > 0 ? <small className="nav-alert">{tasks.filter((task) => task.status !== "done" && task.status !== "cancelled" && task.dueAt && new Date(task.dueAt).getTime() < new Date(new Date().toDateString()).getTime()).length}</small> : null}</button>)}</nav>
+      <div className="sidebar-section-label">WORKSPACE</div><nav className="sidebar-nav" aria-label="Main navigation">{([ ["overview", "Overview"], ["followups", "Follow-ups"], ["tasks", "Task planner"], ["notes", "Private notes"], ["contacts", "Contact database"], ["projects", "Projects & leads"], ["rates", "Rate book"], ["rooms", "Shared databases"], ["reports", "Reports"], ["links", "Public form links"], ["security", "Security"], ["settings", "Settings"] ] as [Tab, string][]).map(([value, label]) => <button className={`nav-item ${tab === value ? "nav-item-active" : ""}`} key={value} onClick={() => setTab(value)}><Icon name={value === "rates" ? "database" : value === "rooms" ? "share" : value === "security" ? "lock" : value === "contacts" ? "contacts" : value === "links" ? "links" : value === "settings" ? "settings" : value === "followups" || value === "tasks" ? "calendar" : value === "notes" ? "note" : value === "projects" ? "briefcase" : value === "reports" ? "chart" : "overview"} /><span>{label}</span>{value === "contacts" && contacts.length > 0 ? <small>{contacts.length}</small> : value === "links" && links.length > 0 ? <small>{links.length}</small> : value === "projects" && projects.length > 0 ? <small>{projects.length}</small> : value === "rooms" && rooms.length > 0 ? <small>{rooms.length}</small> : value === "rates" && rates.length > 0 ? <small>{rates.length}</small> : value === "followups" && counts.followUps > 0 ? <small className="nav-alert">{counts.followUps}</small> : value === "tasks" && tasks.filter((task) => task.status !== "done" && task.status !== "cancelled" && task.dueAt && new Date(task.dueAt).getTime() < new Date(new Date().toDateString()).getTime()).length > 0 ? <small className="nav-alert">{tasks.filter((task) => task.status !== "done" && task.status !== "cancelled" && task.dueAt && new Date(task.dueAt).getTime() < new Date(new Date().toDateString()).getTime()).length}</small> : value === "notes" && notes.some((note) => !note.archived) ? <small>{notes.filter((note) => !note.archived).length}</small> : null}</button>)}</nav>
       <div className="sidebar-spacer" /><div className="sidebar-tip"><span className="tip-spark">✳</span><strong>Keep it organised</strong><p>Save every useful relationship. Your next project may start here.</p><button onClick={() => { setTab("contacts"); setModalContact("new"); }}>+ Add a contact</button></div>
       <div className="sidebar-user"><span className="user-avatar">{initials(brandName)}</span><div><strong>Workspace admin</strong><small>Private access</small></div><button onClick={logout} title="Sign out" aria-label="Sign out"><Icon name="logout" /></button></div>
     </aside>
@@ -397,6 +400,7 @@ export default function Dashboard() {
         {toast && (tab === "projects" || tab === "followups") ? <div className={`toast page-toast toast-${toast.type}`} role="status">{toast.message}<button onClick={() => setToast(null)} aria-label="Dismiss">×</button></div> : null}
         {tab === "followups" ? <FollowUpsPanel contacts={contacts} projects={projects} onOpen={openFollowUp} onUpdate={updateFollowUp} onWhatsApp={openWhatsApp} /> : null}
         {tab === "tasks" ? <TasksPanel tasks={tasks} contacts={contacts} projects={projects} onChanged={() => loadData(false)} notify={notify} /> : null}
+        {tab === "notes" ? <PrivateNotesPanel notes={notes} onChanged={() => loadData(false)} notify={notify} /> : null}
         {tab === "projects" ? <ProjectsPanel projects={projects} contacts={contacts} onEdit={(project) => setModalProject(project)} onDelete={deleteProject} onStatus={changeProjectStatus} /> : null}
         {tab === "rates" ? <RatesPanel rates={rates} contacts={contacts} onChanged={() => loadData(false)} notify={notify} /> : null}
         {tab === "rooms" ? <RoomsPanel rooms={rooms} contacts={contacts} rates={rates} creating={roomCreate} onCloseCreate={() => setRoomCreate(null)} onChanged={() => loadData(false)} notify={notify} ownerName={brandName} /> : null}

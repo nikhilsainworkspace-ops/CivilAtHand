@@ -139,3 +139,25 @@ export type TaskRecord = {
   createdAt: string;
   updatedAt: string;
 };
+
+
+export type PrivateNoteDoc = {
+  title: string;
+  content: string;
+  tags: string[];
+  pinned: boolean;
+  archived: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type PrivateNoteRecord = {
+  _id: string;
+  title: string;
+  content: string;
+  tags: string[];
+  pinned: boolean;
+  archived: boolean;
+  createdAt: string;
+  updatedAt: string;
+};

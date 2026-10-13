@@ -1,7 +1,7 @@
-# Incremental update — Task Planner + security hardening
+# Incremental update — Task Planner, Private Notes + security hardening
 
 ## This ZIP is not the complete app
-Only new and modified files are included. Do not delete or replace any other project files.
+Only new and modified files are included. Do not delete or replace any other project files. The README in this patch preserves the existing portal documentation and adds a detailed operating manual.
 
 ## Safe merge
 1. Download and unzip this patch.
@@ -9,14 +9,21 @@ Only new and modified files are included. Do not delete or replace any other pro
 3. Review `README.md`, `UPDATES.md`, and this guide. `.env.example` is a template only; it is not your live configuration.
 4. Run `npm install` only if your lockfile/dependencies require it, then run `npm run typecheck`, `npm test`, `npm run lint`, and `npm run build` locally.
 5. Commit and push the updates to the same GitHub repository connected to your existing Vercel project. Confirm the Vercel Root Directory still contains the same `package.json`.
-6. Check the deployment logs and test existing login, authenticator login, contacts, projects, rates, links, shared databases, export/import, reports and security screens. Then create a small test task, edit it, mark it complete, reopen it, and delete it.
+6. Check the deployment logs and test existing login, authenticator login, contacts, projects, rates, links, shared databases, export/import, reports and security screens. Then create a small test task, edit it, mark it complete, reopen it, and delete it. Test Private Notes by creating a note with a tag, refreshing, editing, pinning, archiving, restoring, exporting Markdown, and deleting the test note.
 
 ## Data and configuration
-- No MongoDB migration is required. MongoDB creates the `tasks` collection the first time you save a task.
-- No new environment variables are required for the Task Planner.
+- No MongoDB migration is required. MongoDB creates the `tasks` and `privatenotes` collections on their first write.
+- No new environment variables are required for the Task Planner or Private Notes.
 - Keep `MONGODB_URI`, `MONGODB_DB` (if set), `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and `ADMIN_SESSION_SECRET` unchanged unless you intentionally want to change the existing deployment configuration.
 - Do not add secrets to `NEXT_PUBLIC_*` variables, commit `.env.local`, or share your authenticator key.
 - The TOTP fix makes the code's single-use claim atomic for requests that reach the same MongoDB database. Do not treat it as a substitute for testing your deployment and maintaining a recovery method.
+
+## Private Notes behavior
+- Notes are in a separate MongoDB collection from each contact's `notes` field. Create/edit requires pressing Save; autosave is not enabled.
+- Every note route checks the existing admin session. Responses are marked no-store. Notes are not included in public forms or shared-database views.
+- The panel supports title/body/tag search, pinning, archiving/restoring, clipboard copy, Markdown export and confirmed permanent deletion.
+- Full JSON backup now includes `tasks` and `privateNotes`. This means the file includes sensitive note bodies; store it securely. No one-click restore screen is supplied.
+- The application does not separately encrypt note bodies. Do not save passwords, authenticator keys, API secrets or payment-card details in notes.
 
 ## Included paths
 The ZIP preserves directory paths and contains only new/modified files, not the full repository.
