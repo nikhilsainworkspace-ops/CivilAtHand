@@ -1,3 +1,20 @@
+# Civil At Hand: dashboard visual refresh (October 2026)
+
+The visual update is additive. It retains the existing login, contacts, follow-ups, tasks, private notes, projects, rate book, shared databases, reports, public form links, security and settings functionality.
+
+## Updated
+- Redesigned the authenticated shell with navy navigation, blue active states, a clean light canvas, improved spacing, accessible focus styles and responsive layouts.
+- Replaced the overview presentation with four metrics, an upcoming-task table, quick actions, private-note preview and promo/quick-stats cards.
+- Kept the previous overview's network-category list, recently updated contacts, follow-up reminder, project/work-queue summary and privacy explanation.
+- Added a global client-side search across the contacts/projects/tasks/active-notes data already loaded in the private workspace. Contact and project results open their edit forms; task and note results open the corresponding editor.
+- Changed the default brand colour to `#1769e8`; the optional `NEXT_PUBLIC_BRAND_COLOR` continues to override it.
+- No database migration or new environment variable is required.
+
+## Validation status
+Source syntax-transpilation and ZIP integrity checks passed. Full dependency installation timed out in the build environment; run `npm run typecheck`, `npm test`, `npm run lint` and `npm run build` on the merged project before production deployment.
+
+---
+
 # Civil At Hand: incremental productivity/security update
 
 This update is additive. It keeps existing contacts, projects, rates, links, shared databases, exports and security screens. Merge only the files contained in the incremental ZIP into the repository root; allow overwriting files with matching paths. No data migration or new environment variable is needed for the Task Planner or Private Notes.

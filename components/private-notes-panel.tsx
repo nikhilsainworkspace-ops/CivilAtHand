@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { PrivateNoteRecord } from "@/lib/types";
 
 type ToastType = "success" | "error" | "info";
@@ -8,6 +8,8 @@ type Props = {
   notes: PrivateNoteRecord[];
   onChanged: () => Promise<void>;
   notify: (message: string, type?: ToastType) => void;
+  focusNoteId?: string | null;
+  onFocusHandled?: () => void;
 };
 type Filter = "all" | "pinned" | "archived";
 
@@ -28,7 +30,7 @@ async function sendNoteRequest(url: string, init?: RequestInit) {
   return data;
 }
 
-export default function PrivateNotesPanel({ notes, onChanged, notify }: Props) {
+export default function PrivateNotesPanel({ notes, onChanged, notify, focusNoteId, onFocusHandled }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -65,6 +67,15 @@ export default function PrivateNotesPanel({ notes, onChanged, notify }: Props) {
     if (note.archived) setFilter("archived");
     document.getElementById("private-note-editor")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
+  useEffect(() => {
+    if (!focusNoteId) return;
+    const note = notes.find((item) => item._id === focusNoteId && !item.archived);
+    if (note) {
+      setEditingId(note._id); setTitle(note.title); setContent(note.content); setTagsInput((note.tags || []).join(", ")); setPinned(note.pinned); setArchived(note.archived); setFilter("all"); setSearch(note.title);
+      document.getElementById("private-note-editor")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    onFocusHandled?.();
+  }, [focusNoteId, notes, onFocusHandled]);
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

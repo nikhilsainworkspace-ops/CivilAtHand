@@ -23,6 +23,22 @@ Built with Next.js (App Router), MongoDB (Mongoose) and Vercel. One admin, no pu
 | **Security centre** | 2-step verification, signed-in devices, activity log, auto-lock, full backup. |
 | **Branding** | Name, tagline, colour, logo, favicon and domain come from environment variables. |
 
+## Dashboard redesign (October 2026)
+
+The admin workspace now uses a clear navy navigation rail, blue active states, a light page background, card-based summaries, consistent icon colours and responsive layouts. The redesign is visual and organizational: it does not remove any existing modules or data-management actions.
+
+- **Left navigation:** Overview, Follow-ups, Task Planner, Private Notes, Contact Database, Projects & Leads, Rate Book, Shared Databases, Reports, Public Form Links, Security and Settings remain available. Counters still show useful record counts and overdue work where available.
+- **Workspace search:** search contacts, projects, tasks and active private notes from the top bar. Contact and project results open their edit forms. Task and note results open the corresponding editor and scroll to it. Search does not make private records public; the whole dashboard remains behind admin login.
+- **Four overview metrics:** total tasks (with open/completed split), contacts (new and qualified/active), projects (active/completed), and active private notes (pinned/archived split). Clicking a metric takes you to its panel.
+- **Upcoming Tasks:** the overview lists up to six open tasks, ordered by soonest due date and then priority. Overdue tasks get a warning. Use View all / Manage tasks to edit, complete or otherwise manage tasks in the full Task Planner.
+- **Quick Actions:** shortcuts to add a task, write a private note, add a contact or add a project. Collect details stays available in the Overview heading and continues to open the public-form link creator.
+- **Private Notes preview:** up to four recent, active notes are shown with title, a short text preview, date and a pin marker. View all opens the full notes notebook.
+- **Original overview features retained:** Network categories and their category-filter shortcut, recently updated contacts and contact editing, follow-up reminders, open-lead/ongoing-project figures, the work queue, privacy explanation and Workspace Settings link remain available lower on the dashboard.
+- **Recent activity and Quick Stats:** a compact list combines recently updated contacts, projects, tasks and notes (note titles/body text are not shown in this activity list); quick counts show completed/open tasks, active projects and active/qualified contacts.
+- **Responsive behavior:** the left navigation becomes a horizontally scrollable navigation strip on narrow screens, cards collapse into fewer columns, tables scroll horizontally rather than crushing their columns, and buttons remain touch friendly. Search and admin controls wrap on small screens.
+
+The default brand accent is now blue (`#1769e8`) to match the new design. An explicit `NEXT_PUBLIC_BRAND_COLOR` value in Vercel still takes precedence and remains customizable; edit/remove that variable only if you intentionally want to use the new default blue. The UI update introduces no new environment variables and no database migration.
+
 ## Environment variables (add these in Vercel)
 
 Vercel → your project → **Settings → Environment Variables**. Add them for **Production** (and Preview if you use it), then **Redeploy**.
@@ -38,7 +54,7 @@ Vercel → your project → **Settings → Environment Variables**. Add them for
 | `NEXT_PUBLIC_SITE_URL` | Recommended | `https://your-domain.com` (no trailing slash). Public form links are built from it. |
 | `NEXT_PUBLIC_APP_NAME` | No | Business name (default `Civil At Hand`) |
 | `NEXT_PUBLIC_APP_TAGLINE` | No | Short tagline |
-| `NEXT_PUBLIC_BRAND_COLOR` | No | Hex colour, e.g. `#176b59` |
+| `NEXT_PUBLIC_BRAND_COLOR` | No | Hex colour, e.g. `#1769e8` |
 | `NEXT_PUBLIC_BRAND_LOGO_URL` | No | Blank = included logo. Or `/your-logo.png` (file in `public/`) or an `https://` URL |
 | `NEXT_PUBLIC_FAVICON_URL` | No | Blank = included favicon |
 

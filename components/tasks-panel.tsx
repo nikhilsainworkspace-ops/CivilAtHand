@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { ContactRecord, ProjectRecord, TaskRecord } from "@/lib/types";
 import { escapeCsv } from "@/lib/csv";
 
@@ -20,6 +20,8 @@ type Props = {
   projects: ProjectRecord[];
   onChanged: () => Promise<void>;
   notify: (message: string, type?: "success" | "error" | "info") => void;
+  focusTaskId?: string | null;
+  onFocusHandled?: () => void;
 };
 
 const blankForm: TaskForm = { title: "", description: "", status: "todo", priority: "normal", dueAt: "", related: "none:" };
@@ -40,7 +42,7 @@ function isOverdue(task: TaskRecord) {
   return new Date(task.dueAt).getTime() < new Date(new Date().toDateString()).getTime();
 }
 
-export default function TasksPanel({ tasks, contacts, projects, onChanged, notify }: Props) {
+export default function TasksPanel({ tasks, contacts, projects, onChanged, notify, focusTaskId, onFocusHandled }: Props) {
   const [filter, setFilter] = useState<Filter>("open");
   const [search, setSearch] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -74,6 +76,18 @@ export default function TasksPanel({ tasks, contacts, projects, onChanged, notif
     setEditingId(task._id);
     setForm({ title: task.title, description: task.description || "", status: task.status, priority: task.priority, dueAt: isoDate(task.dueAt), related: `${task.relatedKind || "none"}:${task.relatedId || ""}` });
   }
+  useEffect(() => {
+    if (!focusTaskId) return;
+    const task = tasks.find((item) => item._id === focusTaskId);
+    if (task) {
+      setEditingId(task._id);
+      setFilter("all");
+      setSearch(task.title);
+      setForm({ title: task.title, description: task.description || "", status: task.status, priority: task.priority, dueAt: isoDate(task.dueAt), related: `${task.relatedKind || "none"}:${task.relatedId || ""}` });
+      document.getElementById("task-editor")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    onFocusHandled?.();
+  }, [focusTaskId, tasks, onFocusHandled]);
   function update<K extends keyof TaskForm>(key: K, value: TaskForm[K]) { setForm((current) => ({ ...current, [key]: value })); }
 
   async function save(event: FormEvent) {
@@ -145,7 +159,7 @@ export default function TasksPanel({ tasks, contacts, projects, onChanged, notif
       <article><span>COMPLETED</span><strong>{doneCount}</strong><small>Finished tasks</small></article>
     </section>
 
-    <section className="panel task-editor-panel">
+    <section className="panel task-editor-panel" id="task-editor">
       <div className="panel-heading"><div><h2>{editingId ? "Update task" : "Create a task"}</h2><p>Record site visits, quotations, document collection, payment follow-ups and other work.</p></div>{editingId ? <button className="secondary-button" type="button" onClick={startNew}>Cancel edit</button> : null}</div>
       <form className="task-form" onSubmit={save}>
         <label className="field-wrap"><span>Task title *</span><input required maxLength={160} value={form.title} onChange={(event) => update("title", event.target.value)} placeholder="e.g. Send revised quotation to client" /></label>
