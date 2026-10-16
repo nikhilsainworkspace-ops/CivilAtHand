@@ -79,7 +79,7 @@ function renderNoteContent(content: string, shareToken?: string): ReactNode {
 
 async function sendNoteRequest(url: string, init?: RequestInit) {
   const response = await fetch(url, { ...init, cache: "no-store", headers: { ...(init?.headers || {}), ...(init?.body && !(init.body instanceof FormData) ? { "Content-Type": "application/json" } : {}) } });
-  const data = await response.json().catch(() => ({})) as { error?: string; note?: PrivateNoteRecord; asset?: NoteAsset; shares?: NoteShare[]; share?: NoteShare; answer?: string; model?: string };
+  const data = await response.json().catch(() => ({})) as { error?: string; note?: PrivateNoteRecord; asset?: NoteAsset; shares?: NoteShare[]; share?: NoteShare; answer?: string; model?: string; provider?: string };
   if (response.status === 401) window.dispatchEvent(new Event("cah-unauthorized"));
   if (!response.ok) throw new Error(data.error || "The request could not be completed. Please try again.");
   return data;
@@ -115,6 +115,7 @@ export default function PrivateNotesPanel({ notes, projects = [], tasks = [], on
   const [assetLoading, setAssetLoading] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiAnswer, setAiAnswer] = useState("");
+  const [aiModel, setAiModel] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
   const [includeWorkspaceContext, setIncludeWorkspaceContext] = useState(false);
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
@@ -330,12 +331,13 @@ export default function PrivateNotesPanel({ notes, projects = [], tasks = [], on
   async function askAssistant(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!aiPrompt.trim()) { notify("Enter a question or an instruction for the assistant.", "error"); return; }
-    setAiBusy(true); setAiAnswer("");
+    setAiBusy(true); setAiAnswer(""); setAiModel("");
     try {
       const data = await sendNoteRequest("/api/assistant", { method: "POST", body: JSON.stringify({ prompt: aiPrompt.trim(), context: selectedAiContext() || undefined }) });
       if (!data.answer) throw new Error("The assistant did not return a draft.");
       setAiAnswer(data.answer);
-      notify("AI draft ready. Review it before saving or creating tasks.");
+      setAiModel(typeof data.model === "string" ? data.model : "");
+      notify("Gemini AI draft ready. Review it before saving or creating tasks.");
     } catch (error) { notify(error instanceof Error ? error.message : "The AI assistant could not complete this request.", "error"); }
     finally { setAiBusy(false); }
   }
@@ -381,13 +383,13 @@ export default function PrivateNotesPanel({ notes, projects = [], tasks = [], on
     </section>
 
     <section className="panel notes-ai-assistant">
-      <div className="panel-heading"><div><h2>AI work assistant</h2><p>Draft meeting summaries, action lists, reports and follow-up messages. It never writes to your records without your separate confirmation.</p></div><span className="notes-ai-badge">OPTIONAL AI</span></div>
+      <div className="panel-heading"><div><h2>AI work assistant</h2><p>Draft meeting summaries, action lists, reports and follow-up messages. It never writes to your records without your separate confirmation.</p></div><span className="notes-ai-badge"><span className="notes-ai-gemini-mark" aria-hidden="true">✦</span><span>GEMINI AI</span></span></div>
       <form className="notes-ai-form" onSubmit={(event) => void askAssistant(event)}>
         <label className="field-wrap"><span>What do you need help with?</span><textarea rows={3} maxLength={8000} value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} placeholder={"e.g. Turn these meeting notes into a clear summary and next steps…\nOr: What should I finish today?"} /></label>
         <label className="notes-ai-context"><input type="checkbox" checked={includeWorkspaceContext} onChange={(event) => setIncludeWorkspaceContext(event.target.checked)} /><span><strong>Include my task and recent note summaries</strong><small>Optional. When selected, the titles, status and short excerpts listed below are sent to your configured AI provider for this request. Contacts and images are not sent.</small></span></label>
-        <div className="notes-ai-actions"><button className="primary-button" type="submit" disabled={aiBusy || !aiPrompt.trim()}>{aiBusy ? "Preparing draft…" : "Ask AI assistant"}</button><span className="notes-ai-privacy">AI provider access requires a server-side OPENAI_API_KEY. Do not paste passwords, API keys or OTPs.</span></div>
+        <div className="notes-ai-actions"><button className="primary-button" type="submit" disabled={aiBusy || !aiPrompt.trim()}>{aiBusy ? "Preparing draft…" : "Ask AI assistant"}</button><span className="notes-ai-privacy">Powered by Gemini. Requires server-side GEMINI_API_KEY; your key is never sent to the browser. Do not paste passwords, API keys or OTPs.</span></div>
       </form>
-      {aiAnswer ? <div className="notes-ai-answer"><div className="notes-ai-answer-head"><strong>Draft response</strong><span>Review before use</span></div><div className="notes-ai-answer-text">{aiAnswer}</div><div className="notes-ai-actions"><button className="secondary-button" type="button" onClick={async () => { try { await navigator.clipboard.writeText(aiAnswer); notify("AI draft copied."); } catch { notify("Clipboard access was blocked by your browser.", "error"); } }}>Copy draft</button><button className="secondary-button" type="button" onClick={useAssistantAsNewNote}>Use as new note</button>{assistantTaskDrafts().length ? <button className="primary-button" type="button" disabled={aiBusy} onClick={() => void createTasksFromAssistant()}>Create {assistantTaskDrafts().length} checklist tasks</button> : null}</div></div> : null}
+      {aiAnswer ? <div className="notes-ai-answer"><div className="notes-ai-answer-head"><strong>Draft response</strong><span>{aiModel ? `Gemini model: ${aiModel} · Review before use` : "Review before use"}</span></div><div className="notes-ai-answer-text">{aiAnswer}</div><div className="notes-ai-actions"><button className="secondary-button" type="button" onClick={async () => { try { await navigator.clipboard.writeText(aiAnswer); notify("AI draft copied."); } catch { notify("Clipboard access was blocked by your browser.", "error"); } }}>Copy draft</button><button className="secondary-button" type="button" onClick={useAssistantAsNewNote}>Use as new note</button>{assistantTaskDrafts().length ? <button className="primary-button" type="button" disabled={aiBusy} onClick={() => void createTasksFromAssistant()}>Create {assistantTaskDrafts().length} checklist tasks</button> : null}</div></div> : null}
     </section>
 
     <section className="panel notes-editor-panel" id="private-note-editor">
