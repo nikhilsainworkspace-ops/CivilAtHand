@@ -12,6 +12,7 @@ export type TaskInput = {
   dueAt: Date | null;
   relatedKind: typeof taskRelatedKinds[number];
   relatedId: string;
+  assignedContactId: string;
 };
 
 function cleanText(value: unknown, max: number): string {
@@ -40,6 +41,10 @@ export function normalizeTaskInput(input: Record<string, unknown>): TaskInput {
   if (requestedKind !== "none" && !/^[a-f\d]{24}$/i.test(relatedId)) {
     throw new InputError("Choose a valid related contact or project, or set the link to None.");
   }
+  const assignedContactId = cleanText(input.assignedContactId, 64);
+  if (assignedContactId && !/^[a-f\d]{24}$/i.test(assignedContactId)) {
+    throw new InputError("Choose a valid team member to assign this task to, or leave it unassigned.");
+  }
 
   return {
     title,
@@ -49,5 +54,6 @@ export function normalizeTaskInput(input: Record<string, unknown>): TaskInput {
     dueAt: parseDate(input.dueAt),
     relatedKind: requestedKind,
     relatedId,
+    assignedContactId,
   };
 }

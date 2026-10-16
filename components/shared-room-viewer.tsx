@@ -1,16 +1,45 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
 
 type Brand = { name: string; tagline: string; color: string; logoUrl: string };
 type Column = { key: string; label: string };
-type Meta = { title: string; recipientName: string; requiresPasscode: boolean; expiresAt: string; locked: boolean };
+type Meta = { kind?: "note"; title: string; recipientName: string; requiresPasscode: boolean; expiresAt: string; locked: boolean };
 type Data = {
-  title: string; recipientName: string; message: string; columns: Column[]; rows: Record<string, string>[]; rowCount: number;
+  kind?: "note"; title: string; content?: string; tags?: string[]; assetIds?: string[]; recipientName: string; message: string; columns: Column[]; rows: Record<string, string>[]; rowCount: number;
   expiresAt: string; allowDownload: boolean; watermark: boolean; masked: boolean; licenseCode: string;
 };
 
 const PAGE = 100;
+
+function safeUrl(value: string) { try { const url = new URL(value); return url.protocol === "https:" || url.protocol === "http:"; } catch { return false; } }
+function renderSharedNote(content: string, token: string) {
+  return <div className="note-rich-preview shared-note-content">{content.split(/\r?\n/).map((line, index) => {
+    const key = `shared-line-${index}`;
+    const heading = line.match(/^(#{1,3})\s+(.+)$/);
+    const checkbox = line.match(/^\s*[-*]\s+\[([ xX])\]\s+(.+)$/);
+    const bullet = line.match(/^\s*[-*]\s+(.+)$/);
+    const renderInline = (text: string) => {
+      const parts: ReactNode[] = []; const pattern = /(!\[[^\]]*\]\(\/api\/notes\/assets\/[a-f\d]{24}\)|\*\*[^*]+\*\*|\*[^*\n]+\*|\[[^\]]+\]\(https?:\/\/[^\s)]+\)|https?:\/\/[^\s<>()]+)/gi; let last = 0;
+      for (const match of text.matchAll(pattern)) {
+        const index = match.index ?? 0; if (index > last) parts.push(text.slice(last, index));
+        let item = match[0]; let trailing = ""; while (/[.,!?;:]$/.test(item)) { trailing = item.slice(-1) + trailing; item = item.slice(0, -1); }
+        const image = item.match(/^!\[([^\]]*)\]\(\/api\/notes\/assets\/([a-f\d]{24})\)$/i);
+        const markdown = item.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/i);
+        if (image) parts.push(<img className="note-inline-image" key={`img-${index}`} src={`/api/shared/${token}/assets/${image[2]}`} alt={image[1] || "Shared note image"} loading="lazy" />);
+        else if (item.startsWith("**") && item.endsWith("**")) parts.push(<strong key={`bold-${index}`}>{item.slice(2, -2)}</strong>);
+        else if (item.startsWith("*") && item.endsWith("*")) parts.push(<em key={`italic-${index}`}>{item.slice(1, -1)}</em>);
+        else { const href = markdown ? markdown[2] : item; const label = markdown ? markdown[1] : item; parts.push(safeUrl(href) ? <a key={`url-${index}`} href={href} target="_blank" rel="noopener noreferrer nofollow">{label}</a> : item); }
+        if (trailing) parts.push(trailing); last = index + match[0].length;
+      }
+      if (last < text.length) parts.push(text.slice(last)); return parts;
+    };
+    if (heading) return heading[1].length === 1 ? <h2 key={key}>{renderInline(heading[2])}</h2> : heading[1].length === 2 ? <h3 key={key}>{renderInline(heading[2])}</h3> : <h4 key={key}>{renderInline(heading[2])}</h4>;
+    if (checkbox) return <div className="note-check-line" key={key}><span>{checkbox[1].trim() ? "✓" : "□"}</span><span className={checkbox[1].trim() ? "note-check-done" : ""}>{renderInline(checkbox[2])}</span></div>;
+    if (bullet) return <div className="note-bullet-line" key={key}><span>•</span><span>{renderInline(bullet[1])}</span></div>;
+    return <p key={key}>{line ? renderInline(line) : <span className="note-rich-spacer" />}</p>;
+  })}</div>;
+}
 
 function timeLeft(iso: string): string {
   const ms = new Date(iso).getTime() - Date.now();
@@ -118,7 +147,11 @@ export default function SharedRoomViewer({ token }: { token: string }) {
           <button className="primary-button submit-button" type="submit" disabled={busy || meta.locked}>{busy ? "Checking…" : "Unlock"}</button>
         </form>
       </section>
-      : data ? <>
+      : data ? data.kind === "note" ? <>
+        <section className="public-intro sv-intro"><span className="eyebrow">PRIVATE SHARED NOTE</span><h1>{data.title}</h1><p>This is a read-only snapshot shared from Civil At Hand.</p><div className="sv-meta"><span className="form-type-pill">Read only</span><span className="form-type-pill">Expires in {timeLeft(data.expiresAt)}</span></div></section>
+        <section className="public-card shared-note-card"><article className="shared-note-document">{renderSharedNote(data.content || "", token)}</article>{data.tags?.length ? <div className="private-note-tags shared-note-tags">{data.tags.map((tag) => <span key={tag}>{tag}</span>)}</div> : null}</section>
+        <p className="privacy-foot sv-terms">This link gives access to a saved snapshot until it expires or is revoked. Recipients can still copy, photograph or screenshot anything they can view; keep sensitive information out of shared notes.</p>
+      </> : <>
         {mark ? <div className="sv-watermark" aria-hidden="true">{Array.from({ length: 60 }, (_, index) => <span key={index}>{mark}</span>)}</div> : null}
         <section className="public-intro sv-intro"><span className="eyebrow">SECURE SHARED DATA</span><h1>{data.title}</h1>
           {data.message ? <p>{data.message}</p> : null}

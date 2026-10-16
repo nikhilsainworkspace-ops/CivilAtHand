@@ -183,4 +183,6 @@ test("normalizeTaskInput validates and normalizes persistent task fields", async
   assert.throws(() => normalizeTaskInput({ title: "Task", dueAt: "not-a-date" }), /valid due date/);
   assert.throws(() => normalizeTaskInput({ title: "Task", relatedKind: "project", relatedId: "wrong-id" }), /valid related/);
   assert.equal(normalizeTaskInput({ title: "Task", status: "not-a-status", priority: "not-a-priority" }).status, "todo");
+  assert.equal(normalizeTaskInput({ title: "Task", assignedContactId: "0123456789abcdef01234567" }).assignedContactId, "0123456789abcdef01234567");
+  assert.throws(() => normalizeTaskInput({ title: "Task", assignedContactId: "not-a-contact-id" }), /valid team member/i);
 });

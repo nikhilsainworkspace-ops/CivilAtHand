@@ -36,3 +36,24 @@ test("private note normalization rejects invalid state and tag input types", () 
   assert.throws(() => normalizePrivateNoteInput({ title: "ok", tags: 123 }), /tags must be a list/i);
   assert.throws(() => normalizePrivateNoteInput({ title: "ok", content: 123 }), /note content must be text/i);
 });
+
+
+test("private note normalization persists folders, categories, project links, favourites and due dates", () => {
+  const dueAt = "2026-11-05";
+  const note = normalizePrivateNoteInput({
+    title: "  Startup follow-up  ", content: "See https://example.com", tags: ["startup"],
+    favorite: true, folder: "Startup ideas", category: "Startup", projectId: "0123456789abcdef01234567", dueAt,
+  });
+  assert.equal(note.title, "Startup follow-up");
+  assert.equal(note.favorite, true);
+  assert.equal(note.folder, "Startup ideas");
+  assert.equal(note.category, "Startup");
+  assert.equal(note.projectId, "0123456789abcdef01234567");
+  assert.ok(note.dueAt instanceof Date);
+  assert.equal(note.dueAt?.toISOString().slice(0, 10), dueAt);
+});
+
+test("private note normalization rejects malformed linked project IDs and due dates", () => {
+  assert.throws(() => normalizePrivateNoteInput({ title: "Note", projectId: "not-an-id" }), /valid linked project/i);
+  assert.throws(() => normalizePrivateNoteInput({ title: "Note", dueAt: "not-a-date" }), /valid note due date/i);
+});

@@ -134,6 +134,7 @@ export type TaskDoc = {
   dueAt: Date | null;
   relatedKind: "none" | "contact" | "project";
   relatedId: string;
+  assignedContactId?: string;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -147,28 +148,21 @@ export type TaskRecord = {
   dueAt?: string | null;
   relatedKind: "none" | "contact" | "project";
   relatedId: string;
+  assignedContactId?: string;
   createdAt: string;
   updatedAt: string;
 };
 
 
+export type PrivateNoteHistoryEntry = { title: string; content: string; tags: string[]; at: Date | string };
 export type PrivateNoteDoc = {
-  title: string;
-  content: string;
-  tags: string[];
-  pinned: boolean;
-  archived: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+  title: string; content: string; tags: string[]; pinned: boolean; archived: boolean; favorite?: boolean;
+  folder?: string; category?: string; projectId?: string; dueAt?: Date | null; deletedAt?: Date | null;
+  history?: PrivateNoteHistoryEntry[]; createdAt: Date; updatedAt: Date;
 };
 
 export type PrivateNoteRecord = {
-  _id: string;
-  title: string;
-  content: string;
-  tags: string[];
-  pinned: boolean;
-  archived: boolean;
-  createdAt: string;
-  updatedAt: string;
+  _id: string; title: string; content: string; tags: string[]; pinned: boolean; archived: boolean;
+  favorite?: boolean; folder?: string; category?: string; projectId?: string; dueAt?: string | null; deletedAt?: string | null;
+  history?: { title: string; content: string; tags: string[]; at: string }[]; createdAt: string; updatedAt: string;
 };

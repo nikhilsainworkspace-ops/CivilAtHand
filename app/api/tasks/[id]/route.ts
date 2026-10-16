@@ -6,6 +6,7 @@ import { dbConnect } from "@/lib/db";
 import { InputError } from "@/lib/errors";
 import { normalizeTaskInput, taskStatuses } from "@/lib/tasks";
 import { Task } from "@/models/Task";
+import { Contact } from "@/models/Contact";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ id: string }> };
@@ -17,6 +18,10 @@ export async function PUT(request: Request, context: Context) {
   try {
     const normalized = normalizeTaskInput((await request.json()) as Record<string, unknown>);
     await dbConnect();
+    if (normalized.assignedContactId) {
+      const assignee = await Contact.findOne({ _id: normalized.assignedContactId, isTeamMember: true }).select("_id").lean();
+      if (!assignee) throw new InputError("Choose a valid contact marked as a team member.");
+    }
     const task = await Task.findByIdAndUpdate(id, normalized, { new: true, runValidators: true }).lean();
     if (!task) return NextResponse.json({ error: "Task not found." }, { status: 404 });
     await audit(request, "task-updated", normalized.title.slice(0, 80));

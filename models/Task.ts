@@ -9,6 +9,7 @@ const TaskSchema = new Schema({
   dueAt: { type: Date, default: null, index: true },
   relatedKind: { type: String, enum: ["none", "contact", "project"], default: "none" },
   relatedId: { type: String, default: "" },
+  assignedContactId: { type: String, default: "", index: true },
 }, { timestamps: true, minimize: false });
 TaskSchema.index({ status: 1, dueAt: 1, priority: 1 });
 

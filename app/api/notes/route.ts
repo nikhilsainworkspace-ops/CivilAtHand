@@ -14,14 +14,16 @@ export async function GET(request: Request) {
     await dbConnect();
     const url = new URL(request.url);
     const q = (url.searchParams.get("q") || "").trim().slice(0, 100);
+    const view = url.searchParams.get("view") === "trash" ? "trash" : "active";
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const filter: Record<string, any> = {};
+    filter.deletedAt = view === "trash" ? { $ne: null } : null;
     if (q) {
       const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const re = new RegExp(escaped, "i");
       filter.$or = [{ title: re }, { content: re }, { tags: re }];
     }
-    const notes = await PrivateNote.find(filter).sort({ archived: 1, pinned: -1, updatedAt: -1 }).limit(1000).lean();
+    const notes = await PrivateNote.find(filter).sort({ archived: 1, pinned: -1, favorite: -1, updatedAt: -1 }).limit(5000).lean();
     return NextResponse.json({ notes }, { headers: { "Cache-Control": "no-store", "Pragma": "no-cache" } });
   } catch (error) {
     console.error("Private notes list error:", error);

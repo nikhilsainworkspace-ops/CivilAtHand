@@ -26,7 +26,10 @@ type GlobalSearchResult =
   | { kind: "contact"; id: string; title: string; subtitle: string; record: ContactRecord }
   | { kind: "project"; id: string; title: string; subtitle: string; record: ProjectRecord }
   | { kind: "task"; id: string; title: string; subtitle: string; record: TaskRecord }
-  | { kind: "note"; id: string; title: string; subtitle: string; record: PrivateNoteRecord };
+  | { kind: "note"; id: string; title: string; subtitle: string; record: PrivateNoteRecord }
+  | { kind: "rate"; id: string; title: string; subtitle: string; record: RateRecord }
+  | { kind: "room"; id: string; title: string; subtitle: string; record: RoomRecord }
+  | { kind: "link"; id: string; title: string; subtitle: string; record: ShareLinkRecord };
 const taskPriorityLabels: Record<TaskRecord["priority"], string> = { low: "Low", normal: "Normal", high: "High", urgent: "Urgent" };
 const taskStatusLabels: Record<TaskRecord["status"], string> = { todo: "Pending", "in-progress": "In progress", done: "Completed", cancelled: "Cancelled" };
 
@@ -338,6 +341,18 @@ export default function Dashboard() {
   const [linkModal, setLinkModal] = useState(false);
   const [search, setSearch] = useState(""); const [appliedSearch, setAppliedSearch] = useState(""); const [filterCategory, setFilterCategory] = useState(""); const [filterStatus, setFilterStatus] = useState("");
   const [globalSearch, setGlobalSearch] = useState(""); const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const globalSearchInputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    function handleWorkspaceShortcut(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setGlobalSearchOpen(true);
+        window.setTimeout(() => globalSearchInputRef.current?.focus(), 0);
+      }
+    }
+    window.addEventListener("keydown", handleWorkspaceShortcut);
+    return () => window.removeEventListener("keydown", handleWorkspaceShortcut);
+  }, []);
 
   function clearClientWorkspaceState() {
     setContacts([]); setLinks([]); setHealth(null); setBusy(false); setImporting(false); setSaving(false);
@@ -355,10 +370,10 @@ export default function Dashboard() {
   const clearFocusedNote = useCallback(() => setFocusedNoteId(null), []);
   const loadData = useCallback(async (showError = true) => {
     try {
-      const [contactData, linkData, projectData, roomData, rateData, healthData, taskData, noteData, preferenceData] = await Promise.all([
-        jsonRequest("/api/contacts?limit=5000"), jsonRequest("/api/links"), jsonRequest("/api/projects").catch(() => ({ projects: [] })), jsonRequest("/api/rooms").catch(() => ({ rooms: [] })), jsonRequest("/api/rates").catch(() => ({ rates: [] })), jsonRequest("/api/health").catch((error) => ({ database: "error", message: error.message })), jsonRequest("/api/tasks").catch(() => ({ tasks: [] })), jsonRequest("/api/notes"), jsonRequest("/api/security/preferences").catch(() => ({ autoLockMinutes: 15 })),
+      const [contactData, linkData, projectData, roomData, rateData, healthData, taskData, noteData, trashNoteData, preferenceData] = await Promise.all([
+        jsonRequest("/api/contacts?limit=5000"), jsonRequest("/api/links"), jsonRequest("/api/projects").catch(() => ({ projects: [] })), jsonRequest("/api/rooms").catch(() => ({ rooms: [] })), jsonRequest("/api/rates").catch(() => ({ rates: [] })), jsonRequest("/api/health").catch((error) => ({ database: "error", message: error.message })), jsonRequest("/api/tasks").catch(() => ({ tasks: [] })), jsonRequest("/api/notes"), jsonRequest("/api/notes?view=trash").catch(() => ({ notes: [] })), jsonRequest("/api/security/preferences").catch(() => ({ autoLockMinutes: 15 })),
       ]);
-      setContacts(contactData.contacts || []); setLinks(linkData.links || []); setProjects(projectData.projects || []); setRooms(roomData.rooms || []); setRates(rateData.rates || []); setHealth(healthData); setTasks(taskData.tasks || []); setNotes(noteData.notes || []);
+      setContacts(contactData.contacts || []); setLinks(linkData.links || []); setProjects(projectData.projects || []); setRooms(roomData.rooms || []); setRates(rateData.rates || []); setHealth(healthData); setTasks(taskData.tasks || []); setNotes([...(noteData.notes || []), ...(trashNoteData.notes || [])]);
       const storedAutoLock = Number(preferenceData.autoLockMinutes);
       setAutoLock([0, 5, 15, 30, 60].includes(storedAutoLock) ? storedAutoLock : 15);
     } catch (error) { if (showError) notify(error instanceof Error ? error.message : "Could not load the dashboard.", "error"); }
@@ -561,7 +576,7 @@ export default function Dashboard() {
   const overdueTaskCount = useMemo(() => openTasks.filter((task) => task.dueAt && new Date(task.dueAt).getTime() < new Date(new Date().toDateString()).getTime()).length, [openTasks]);
   const completedTaskCount = useMemo(() => tasks.filter((task) => task.status === "done").length, [tasks]);
   const activeProjects = useMemo(() => projects.filter((project) => !["completed", "lost"].includes(project.status)), [projects]);
-  const activeNotes = useMemo(() => notes.filter((note) => !note.archived).sort((a, b) => Number(b.pinned) - Number(a.pinned) || new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()), [notes]);
+  const activeNotes = useMemo(() => notes.filter((note) => !note.archived && !note.deletedAt).sort((a, b) => Number(b.pinned) - Number(a.pinned) || new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()), [notes]);
   const globalSearchResults = useMemo<GlobalSearchResult[]>(() => {
     const query = globalSearch.trim().toLowerCase();
     if (!query) return [];
@@ -575,21 +590,37 @@ export default function Dashboard() {
       if (haystack.includes(query)) results.push({ kind: "project", id: project._id, title: project.title, subtitle: `${project.clientName || "Project"} · ${project.city || project.status}`, record: project });
     }
     for (const task of tasks) {
-      const haystack = [task.title, task.description].join(" ").toLowerCase();
-      if (haystack.includes(query)) results.push({ kind: "task", id: task._id, title: task.title, subtitle: `${taskPriorityLabels[task.priority]} priority · ${taskStatusLabels[task.status]}`, record: task });
+      const assignee = contacts.find((contact) => contact._id === task.assignedContactId);
+      const haystack = [task.title, task.description, assignee?.name, assignee?.teamRole].join(" ").toLowerCase();
+      if (haystack.includes(query)) results.push({ kind: "task", id: task._id, title: task.title, subtitle: `${taskPriorityLabels[task.priority]} priority · ${taskStatusLabels[task.status]} · ${assignee?.name || "Unassigned"}`, record: task });
     }
     for (const note of activeNotes) {
-      const haystack = [note.title, note.content, ...(note.tags || [])].join(" ").toLowerCase();
-      if (haystack.includes(query)) results.push({ kind: "note", id: note._id, title: note.title, subtitle: `${note.pinned ? "Pinned note" : "Private note"} · Updated ${shortDate(note.updatedAt)}`, record: note });
+      const haystack = [note.title, note.content, note.folder, note.category, ...(note.tags || [])].join(" ").toLowerCase();
+      if (haystack.includes(query)) results.push({ kind: "note", id: note._id, title: note.title, subtitle: `${note.pinned ? "Pinned note" : "Private note"} · ${note.folder || "Inbox"} · Updated ${shortDate(note.updatedAt)}`, record: note });
     }
-    return results.slice(0, 8);
-  }, [globalSearch, contacts, projects, tasks, activeNotes]);
+    for (const rate of rates) {
+      const haystack = [rate.item, rate.group, rate.spec, rate.unit, rate.supplierName, rate.city, rate.state, rate.notes].join(" ").toLowerCase();
+      if (haystack.includes(query)) results.push({ kind: "rate", id: rate._id, title: rate.item, subtitle: `${rate.group || "Rate book"} · ${rate.supplierName || rate.city || rate.unit}`, record: rate });
+    }
+    for (const room of rooms) {
+      const haystack = [room.title, room.recipientName, room.recipientContact, room.message, room.dataset, room.status, room.paymentStatus].join(" ").toLowerCase();
+      if (haystack.includes(query)) results.push({ kind: "room", id: room._id, title: room.title, subtitle: `Shared database · ${room.recipientName || room.dataset} · ${room.status}`, record: room });
+    }
+    for (const link of links) {
+      const haystack = [link.title, link.category, link.active ? "active" : "paused", link.submissions, link.expiresAt].join(" ").toLowerCase();
+      if (haystack.includes(query)) results.push({ kind: "link", id: link._id, title: link.title, subtitle: `Public form · ${link.category} · ${link.active ? "Active" : "Paused"}`, record: link });
+    }
+    return results.slice(0, 10);
+  }, [globalSearch, contacts, projects, tasks, activeNotes, rates, rooms, links]);
   function openGlobalSearchResult(result: GlobalSearchResult) {
     setGlobalSearchOpen(false);
     setGlobalSearch("");
     if (result.kind === "contact") { setTab(result.record.isTeamMember ? "team" : "contacts"); setModalContact(result.record); return; }
     if (result.kind === "project") { setTab("projects"); setModalProject(result.record); return; }
     if (result.kind === "task") { setFocusedTaskId(result.id); setTab("tasks"); return; }
+    if (result.kind === "rate") { setTab("rates"); return; }
+    if (result.kind === "room") { setTab("rooms"); return; }
+    if (result.kind === "link") { setTab("links"); return; }
     setFocusedNoteId(result.id); setTab("notes");
   }
   const exportParams = new URLSearchParams();
@@ -640,7 +671,7 @@ export default function Dashboard() {
         </div>
       </div>
       <nav className="sidebar-nav" ref={sidebarNavRef} aria-label="Main navigation" tabIndex={0}>
-        {visibleSidebarNavItems.map(([value, label]) => <button className={`nav-item ${tab === value ? "nav-item-active" : ""}`} key={value} aria-current={tab === value ? "page" : undefined} onClick={() => { setTab(value); setNavFilter(""); }}><Icon name={value === "rates" ? "database" : value === "rooms" ? "share" : value === "security" ? "lock" : value === "contacts" || value === "team" ? "contacts" : value === "links" ? "links" : value === "settings" ? "settings" : value === "followups" || value === "tasks" ? "calendar" : value === "notes" ? "note" : value === "projects" ? "briefcase" : value === "reports" ? "chart" : "overview"} /><span>{label}</span>{value === "contacts" && contacts.length > 0 ? <small>{contacts.length}</small> : value === "team" && contacts.filter((contact) => contact.isTeamMember).length > 0 ? <small>{contacts.filter((contact) => contact.isTeamMember).length}</small> : value === "links" && links.length > 0 ? <small>{links.length}</small> : value === "projects" && projects.length > 0 ? <small>{projects.length}</small> : value === "rooms" && rooms.length > 0 ? <small>{rooms.length}</small> : value === "rates" && rates.length > 0 ? <small>{rates.length}</small> : value === "followups" && counts.followUps > 0 ? <small className="nav-alert">{counts.followUps}</small> : value === "tasks" && overdueTaskCount > 0 ? <small className="nav-alert">{overdueTaskCount}</small> : value === "notes" && notes.some((note) => !note.archived) ? <small>{notes.filter((note) => !note.archived).length}</small> : null}</button>)}
+        {visibleSidebarNavItems.map(([value, label]) => <button className={`nav-item ${tab === value ? "nav-item-active" : ""}`} key={value} aria-current={tab === value ? "page" : undefined} onClick={() => { setTab(value); setNavFilter(""); }}><Icon name={value === "rates" ? "database" : value === "rooms" ? "share" : value === "security" ? "lock" : value === "contacts" || value === "team" ? "contacts" : value === "links" ? "links" : value === "settings" ? "settings" : value === "followups" || value === "tasks" ? "calendar" : value === "notes" ? "note" : value === "projects" ? "briefcase" : value === "reports" ? "chart" : "overview"} /><span>{label}</span>{value === "contacts" && contacts.length > 0 ? <small>{contacts.length}</small> : value === "team" && contacts.filter((contact) => contact.isTeamMember).length > 0 ? <small>{contacts.filter((contact) => contact.isTeamMember).length}</small> : value === "links" && links.length > 0 ? <small>{links.length}</small> : value === "projects" && projects.length > 0 ? <small>{projects.length}</small> : value === "rooms" && rooms.length > 0 ? <small>{rooms.length}</small> : value === "rates" && rates.length > 0 ? <small>{rates.length}</small> : value === "followups" && counts.followUps > 0 ? <small className="nav-alert">{counts.followUps}</small> : value === "tasks" && overdueTaskCount > 0 ? <small className="nav-alert">{overdueTaskCount}</small> : value === "notes" && notes.some((note) => !note.archived && !note.deletedAt) ? <small>{notes.filter((note) => !note.archived && !note.deletedAt).length}</small> : null}</button>)}
         {visibleSidebarNavItems.length === 0 ? <div className="sidebar-nav-empty">No panels match “{navFilter}”. <button type="button" onClick={() => setNavFilter("")}>Clear search</button></div> : null}
       </nav>
       <div className="sidebar-spacer" /><div className="sidebar-tip"><span className="tip-spark">✳</span><strong>Keep it organised</strong><p>Save every useful relationship. Your next project may start here.</p><button onClick={() => { setTab("contacts"); setModalContact("new"); }}>+ Add a contact</button></div>
@@ -650,13 +681,13 @@ export default function Dashboard() {
     <div className="main-column"><header className="topbar">
         <form className="workspace-search" role="search" onSubmit={(event) => { event.preventDefault(); setGlobalSearchOpen(true); }}>
           <span className="workspace-search-icon"><Icon name="search" /></span>
-          <input value={globalSearch} onChange={(event) => { setGlobalSearch(event.target.value); setGlobalSearchOpen(Boolean(event.target.value.trim())); }} onFocus={() => { if (globalSearch.trim()) setGlobalSearchOpen(true); }} onBlur={() => setGlobalSearchOpen(false)} onKeyDown={(event) => { if (event.key === "Escape") setGlobalSearchOpen(false); }} placeholder="Search contacts, projects, tasks, notes…" aria-label="Search contacts, projects, tasks and private notes" autoComplete="off" />
+          <input ref={globalSearchInputRef} value={globalSearch} onChange={(event) => { setGlobalSearch(event.target.value); setGlobalSearchOpen(Boolean(event.target.value.trim())); }} onFocus={() => { if (globalSearch.trim()) setGlobalSearchOpen(true); }} onBlur={() => setGlobalSearchOpen(false)} onKeyDown={(event) => { if (event.key === "Escape") setGlobalSearchOpen(false); }} placeholder="Search contacts, projects, tasks, notes, rates, links…" aria-label="Search contacts, projects, tasks, notes, rates, shared databases and form links" autoComplete="off" />
           {globalSearch ? <button type="button" className="workspace-search-clear" onClick={() => { setGlobalSearch(""); setGlobalSearchOpen(false); }} aria-label="Clear search">×</button> : <span className="workspace-search-hint">Search</span>}
           {globalSearchOpen && globalSearch.trim() ? <div className="global-search-results" role="listbox" aria-label="Search results">
             {globalSearchResults.length ? globalSearchResults.map((result) => <button type="button" className="global-search-result" key={`${result.kind}-${result.id}`} onMouseDown={(event) => event.preventDefault()} onClick={() => openGlobalSearchResult(result)}>
-              <span className={`global-result-icon global-result-${result.kind}`}>{result.kind === "contact" ? <Icon name="contacts" /> : result.kind === "project" ? <Icon name="briefcase" /> : result.kind === "task" ? <Icon name="calendar" /> : <Icon name="note" />}</span>
+              <span className={`global-result-icon global-result-${result.kind}`}>{result.kind === "contact" ? <Icon name="contacts" /> : result.kind === "project" ? <Icon name="briefcase" /> : result.kind === "task" ? <Icon name="calendar" /> : result.kind === "rate" || result.kind === "room" ? <Icon name="database" /> : result.kind === "link" ? <Icon name="links" /> : <Icon name="note" />}</span>
               <span className="global-result-copy"><strong>{result.title}</strong><small>{result.subtitle}</small></span><span className="global-result-type">{result.kind}</span>
-            </button>) : <div className="global-search-empty"><strong>No matches found</strong><span>Try a name, project, task title or note keyword.</span></div>}
+            </button>) : <div className="global-search-empty"><strong>No matches found</strong><span>Try a contact, task, note, rate, shared database or form-link keyword.</span></div>}
             <div className="global-search-footer">Search across your private workspace</div>
           </div> : null}
         </form>
@@ -671,7 +702,7 @@ export default function Dashboard() {
             <button type="button" className="dashboard-metric metric-blue" onClick={() => setTab("tasks")}><span className="metric-icon"><Icon name="calendar" /></span><span className="metric-content"><small>Total tasks</small><strong>{tasks.length}</strong><span>{openTasks.length} pending <b>·</b> {completedTaskCount} completed</span></span></button>
             <button type="button" className="dashboard-metric metric-green" onClick={() => setTab("contacts")}><span className="metric-icon"><Icon name="contacts" /></span><span className="metric-content"><small>Total contacts</small><strong>{contacts.length}</strong><span>{counts.new} new <b>·</b> {counts.active} active / qualified</span></span></button>
             <button type="button" className="dashboard-metric metric-purple" onClick={() => setTab("projects")}><span className="metric-icon"><Icon name="briefcase" /></span><span className="metric-content"><small>Total projects</small><strong>{projects.length}</strong><span>{activeProjects.length} active <b>·</b> {projects.filter((project) => project.status === "completed").length} completed</span></span></button>
-            <button type="button" className="dashboard-metric metric-orange" onClick={() => setTab("notes")}><span className="metric-icon"><Icon name="note" /></span><span className="metric-content"><small>Private notes</small><strong>{activeNotes.length}</strong><span>{activeNotes.filter((note) => note.pinned).length} pinned <b>·</b> {notes.filter((note) => note.archived).length} archived</span></span></button>
+            <button type="button" className="dashboard-metric metric-orange" onClick={() => setTab("notes")}><span className="metric-icon"><Icon name="note" /></span><span className="metric-content"><small>Private notes</small><strong>{activeNotes.length}</strong><span>{activeNotes.filter((note) => note.pinned).length} pinned <b>·</b> {notes.filter((note) => note.archived && !note.deletedAt).length} archived</span></span></button>
           </section>
 
           <div className="dashboard-main-grid">
@@ -760,7 +791,7 @@ export default function Dashboard() {
         {toast && (tab === "projects" || tab === "followups") ? <div className={`toast page-toast toast-${toast.type}`} role="status">{toast.message}<button onClick={() => setToast(null)} aria-label="Dismiss">×</button></div> : null}
         {tab === "followups" ? <FollowUpsPanel contacts={contacts} projects={projects} onOpen={openFollowUp} onUpdate={updateFollowUp} onWhatsApp={openWhatsApp} /> : null}
         {tab === "tasks" ? <TasksPanel tasks={tasks} contacts={contacts} projects={projects} onChanged={() => loadData(false)} notify={notify} focusTaskId={focusedTaskId} onFocusHandled={clearFocusedTask} /> : null}
-        {tab === "notes" ? <PrivateNotesPanel notes={notes} onChanged={() => loadData(false)} notify={notify} focusNoteId={focusedNoteId} onFocusHandled={clearFocusedNote} /> : null}
+        {tab === "notes" ? <PrivateNotesPanel notes={notes} projects={projects} tasks={tasks} onChanged={() => loadData(false)} notify={notify} focusNoteId={focusedNoteId} onFocusHandled={clearFocusedNote} /> : null}
         {tab === "projects" ? <ProjectsPanel projects={projects} contacts={contacts} onEdit={(project) => setModalProject(project)} onDelete={deleteProject} onStatus={changeProjectStatus} /> : null}
         {tab === "rates" ? <RatesPanel rates={rates} contacts={contacts} onChanged={() => loadData(false)} notify={notify} /> : null}
         {tab === "rooms" ? <RoomsPanel rooms={rooms} contacts={contacts} rates={rates} creating={roomCreate} onCloseCreate={() => setRoomCreate(null)} onChanged={() => loadData(false)} notify={notify} ownerName={brandName} /> : null}

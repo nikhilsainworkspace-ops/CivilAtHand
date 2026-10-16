@@ -4,7 +4,7 @@ A private management system for a personal civil engineering business. Keep manp
 
 Built with Next.js (App Router), MongoDB (Mongoose) and Vercel. One admin, no public sign-up.
 
-For the detailed contact fields, Team directory, Google Contacts CSV import, and shared-database creation/troubleshooting, read [`CONTACTS-AND-SHARING-GUIDE.md`](./CONTACTS-AND-SHARING-GUIDE.md).
+For detailed contact fields, Team directory, Google Contacts CSV import, and shared-database creation/troubleshooting, read [`CONTACTS-AND-SHARING-GUIDE.md`](./CONTACTS-AND-SHARING-GUIDE.md).
 
 ## What you can do
 
@@ -14,7 +14,7 @@ For the detailed contact fields, Team directory, Google Contacts CSV import, and
 | **Duplicate detection** | Same phone (last 10 digits, so `+91 98765 43210` = `098765-43210`) or same email is caught when you add/edit a contact (you can still save anyway), flagged with a **Duplicate?** badge, and listed with the **Duplicates** filter. Import skips duplicates. |
 | **Follow-ups** | One list of everything overdue, due today, next 7 days and later, for contacts and projects. Call, WhatsApp, **Done**, **Tomorrow**, **+1 week**. A red counter shows on the menu. (In-app reminders only; nothing is emailed or pushed.) |
 | **Task planner** | Persistent tasks for site visits, quotations, document collection and operations. Due dates, priority, status, notes, links to a contact or project, overdue-first sorting, search, CSV export and completion tracking. |
-| **Private notes** | Admin-only notebook stored in MongoDB: create, edit, search, tag, pin, archive / restore, copy, export to Markdown, and permanently delete notes. Included in the full JSON backup; never exposed on public forms or shared database links. |
+| **Private notes** | Admin-only MongoDB notebook with autosave, folders/categories, linked projects, tags, pin/favourites, due dates, Markdown-style headings/checklists, clickable links, database-stored images, 20-version history, recycle-bin recovery, Markdown export and expiring/revocable read-only sharing. |
 | **Projects & leads** | Lead → Quoted → Negotiation → Ongoing → Completed / On hold / Lost. Client, location, work type, estimated value (₹), dates, lead source, notes, linked contacts (suppliers, subcontractors, workers…), quick stage change, Excel/CSV export |
 | **Public forms** | Create a link per category, share by WhatsApp, optional expiry, pause / reactivate / delete. Labels are bilingual (`Name / नाम`). People see only their own form, never your data. |
 | **Import / export** | Import the app's CSV / `.xlsx` template or Google Contacts CSV (including repeated Phone / E-mail Label and Value columns); 4 MB, 1,000 rows, errors and duplicates reported. Export contacts and projects as `.xlsx` or `.csv`. |
@@ -22,7 +22,7 @@ For the detailed contact fields, Team directory, Google Contacts CSV import, and
 | **Reports** | Contacts by category / status / state / source, new contacts per month, project pipeline by stage with ₹ value, overdue follow-ups, busiest form links. |
 | **Shared databases** | Sell or share a frozen copy of selected contacts or rates through a private link with expiry, passcode, open limit, watermark, download switch, price / paid tracking and an access log. |
 | **Rate book** | Material, labour and equipment rates with suppliers, supplier comparison, stale-rate flags, export and sharing. |
-| **Security centre** | 2-step verification, signed-in devices, activity log, auto-lock, full backup. |
+| **Security centre** | 2-step verification, signed-in devices, activity log, auto-lock, JSON backup with note images, validated merge restore and restore preview. |
 | **Branding** | Name, tagline, colour, logo, favicon and domain come from environment variables. |
 
 ## Dashboard redesign (October 2026)
@@ -30,7 +30,7 @@ For the detailed contact fields, Team directory, Google Contacts CSV import, and
 The admin workspace now uses a clear navy navigation rail, blue active states, a light page background, card-based summaries, consistent icon colours and responsive layouts. The redesign is visual and organizational: it does not remove any existing modules or data-management actions.
 
 - **Left navigation:** Overview, Follow-ups, Task Planner, Private Notes, Contact Database, Projects & Leads, Rate Book, Shared Databases, Reports, Public Form Links, Security and Settings remain available. Counters still show useful record counts and overdue work where available.
-- **Workspace search:** search contacts, projects, tasks and active private notes from the top bar. Contact and project results open their edit forms. Task and note results open the corresponding editor and scroll to it. Search does not make private records public; the whole dashboard remains behind admin login.
+- **Workspace search:** search contacts, projects, tasks, rates, active private notes, shared databases and public form links from the top bar. Press **Ctrl+K** (or **⌘K** on Mac) to focus the search. Search is limited to records already loaded in the admin workspace and never makes private records public.
 - **Four overview metrics:** total tasks (with open/completed split), contacts (new and qualified/active), projects (active/completed), and active private notes (pinned/archived split). Clicking a metric takes you to its panel.
 - **Upcoming Tasks:** the overview lists up to six open tasks, ordered by soonest due date and then priority. Overdue tasks get a warning. Use View all / Manage tasks to edit, complete or otherwise manage tasks in the full Task Planner.
 - **Quick Actions:** shortcuts to add a task, write a private note, add a contact or add a project. Collect details stays available in the Overview heading and continues to open the public-form link creator.
@@ -39,7 +39,7 @@ The admin workspace now uses a clear navy navigation rail, blue active states, a
 - **Recent activity and Quick Stats:** a compact list combines recently updated contacts, projects, tasks and notes (note titles/body text are not shown in this activity list); quick counts show completed/open tasks, active projects and active/qualified contacts.
 - **Responsive behavior:** the left navigation becomes a horizontally scrollable navigation strip on narrow screens, cards collapse into fewer columns, tables scroll horizontally rather than crushing their columns, and buttons remain touch friendly. Search and admin controls wrap on small screens.
 
-The default brand accent is now blue (`#1769e8`) to match the new design. An explicit `NEXT_PUBLIC_BRAND_COLOR` value in Vercel still takes precedence and remains customizable; edit/remove that variable only if you intentionally want to use the new default blue. The UI update introduces no new environment variables and no database migration.
+The default brand accent is blue (`#1769e8`). An explicit `NEXT_PUBLIC_BRAND_COLOR` value in Vercel takes precedence. Notes, image attachments, note-share links and server-side backup snapshots use additional MongoDB collections created automatically on first use. AI assistance is optional and requires `OPENAI_API_KEY`; all other features operate without it. A Vercel Cron runs `/api/backup/scheduled` daily at 03:00 UTC when `CRON_SECRET` is configured. Because these snapshots are kept in the same MongoDB database, also keep an independent downloaded backup in a separate secure location.
 
 ## Environment variables (add these in Vercel)
 
@@ -52,6 +52,10 @@ Vercel → your project → **Settings → Environment Variables**. Add them for
 | `ADMIN_PASSWORD` | **Yes** | A long, unique password (not stored in the database) |
 | `ADMIN_SESSION_SECRET` | **Yes** | Random text, **32+ characters** (`openssl rand -hex 32`) |
 | `ADMIN_TOTP_SECRET` | Optional, recommended | Base32 secret generated from Security → Set up 2-step verification. Keep it private; do not use a `NEXT_PUBLIC_` name. |
+| `OPENAI_API_KEY` | Optional | Server-side key for the AI work assistant in Private Notes. Never prefix it with `NEXT_PUBLIC_`. Without it, all non-AI features continue working. |
+| `OPENAI_MODEL` | Optional | AI model ID (default `gpt-4o-mini`). Use a model enabled for your API account. |
+| `CRON_SECRET` | Required for automatic scheduled backups | Random secret of 32+ characters. Vercel sends it to the scheduled backup endpoint as a bearer token. Do not share it or prefix it with `NEXT_PUBLIC_`. Manual snapshots still work without it. |
+| `BACKUP_RETENTION_DAYS` | Optional | Automatic cleanup window for server-side snapshots (default `7`, range `1`–`30`). A hard cap of 30 snapshots also applies. |
 | `MONGODB_DB` | Only if you already use it | Database name. If you never set it, leave it out; the app uses the database named in `MONGODB_URI`. **Do not change it on an existing site**, or your records will seem to vanish. |
 | `NEXT_PUBLIC_SITE_URL` | Recommended | `https://your-domain.com` (no trailing slash). Public form links are built from it. |
 | `NEXT_PUBLIC_APP_NAME` | No | Business name (default `Civil At Hand`) |
@@ -60,7 +64,7 @@ Vercel → your project → **Settings → Environment Variables**. Add them for
 | `NEXT_PUBLIC_BRAND_LOGO_URL` | No | Blank = included logo. Or `/your-logo.png` (file in `public/`) or an `https://` URL |
 | `NEXT_PUBLIC_FAVICON_URL` | No | Blank = included favicon |
 
-Only the four required ones matter to get started. Never put secrets in variables starting with `NEXT_PUBLIC_`. See `.env.example`.
+Only the four required ones matter to get started. `CRON_SECRET` is needed for automated scheduled backups; without it, an admin can still create snapshots manually in Security. Never put secrets in variables starting with `NEXT_PUBLIC_`, and never commit secret values to the repository.
 
 ## Deploy (new GitHub repository)
 
@@ -72,7 +76,7 @@ Only the four required ones matter to get started. Never put secrets in variable
 6. Custom domain: Vercel → Settings → Domains, add it and set the DNS records Vercel shows, then set `NEXT_PUBLIC_SITE_URL` and redeploy.
 
 ### Updating an existing repository
-Unzip the **update ZIP** over your repository root (same folder structure), allow overwrite, commit and push. Vercel redeploys automatically. No data migration is needed: existing contacts, links and public form URLs keep working. Projects are a new collection that MongoDB creates by itself.
+For a files-only update ZIP, extract it into the repository root and allow overwrite; it contains only changed and new files with their original paths. Alternatively, apply `changes.patch` from the repository root with `git apply --check changes.patch` and then `git apply changes.patch`. Review the diff, run the checks locally, commit and push. Vercel redeploys automatically. No existing contact, project, task, public-form or shared-database records are intentionally deleted. New MongoDB collections are created automatically. The restore tool is merge-only.
 
 ## Local development
 
@@ -125,7 +129,7 @@ Save material, labour, equipment and sub-contract rates with unit, supplier (lin
 - **History per contact:** log calls, WhatsApp, meetings and site visits; "last contacted" is tracked. Plus a 1-5 star **rating** and a **Preferred / Avoid** flag.
 - **Project money:** billed and received per project, *To collect* tile and report.
 - **Task planner:** add operational tasks with priority, due date, notes and a related contact/project. Overdue tasks rise to the top; mark tasks complete or reopen them.
-- **Private notes:** store your own internal notes in the `PrivateNote` MongoDB collection. Notes have a title, body, comma-separated tags, pin and archive states; they can be edited, copied, searched, exported as Markdown, restored from archive or permanently deleted. Only the signed-in admin API can read or change them.
+- **Private notes:** store internal notes in MongoDB with debounced autosave, folders, categories, project links, tags, favourites, pin/archive, due dates, Markdown-style headings/checklists, clickable URLs, MongoDB-stored images, search, 20-version history, recycle-bin recovery, Markdown export, and revocable, expiring read-only share links. Only the signed-in admin API can read or change private notes.
 - **Import template:** a blank Excel file with the right columns. **Full backup** (JSON) in Security.
 - **Hide numbers** button blurs phone numbers and emails while someone looks at your screen.
 
@@ -175,7 +179,7 @@ public/                  logo, icons, favicon
 ## Known limits
 
 - Follow-ups and tasks are shown inside the app; there are no email/SMS/push notifications or scheduled background jobs.
-- Payments are recorded by you (no payment gateway). There is no file/photo storage, and no restore-from-backup button (use MongoDB Atlas backups for full restore; CSV import covers contacts).
+- Payments are recorded by you (no payment gateway). Private-note image attachments are stored in MongoDB. Security now offers a validated, merge-only JSON restore for supported core collections and note images; it intentionally does not recreate public share tokens or shared-database row snapshots. Keep MongoDB Atlas automated backups enabled for full disaster recovery.
 - One admin user. Up to 5,000 contacts are loaded into the dashboard at once; reports use the loaded records.
 - `.xls` (old Excel) is not imported; save as `.xlsx` or CSV.
 - Not an accounting, payroll or contract system.
@@ -183,7 +187,7 @@ public/                  logo, icons, favicon
 
 ## Detailed portal manual — what each area does and how to use it
 
-This section describes the screens already in the portal plus the dashboard, Task Planner, Private Notes, Google Contacts-style fields/import, and shared-link fixes. The system is designed as a single-admin workspace. It does not create public admin accounts. Normal records are stored in your configured MongoDB database and protected API routes require a valid admin session. Public form and shared-database links are deliberately separate from your private dashboard.
+This section describes the screens already in the portal plus the dashboard, Task Planner, Private Notes, Google Contacts-style fields/import, and shared-link fixes. The system is designed as a single-admin workspace. The Team directory is a private roster, not a separate teammate login portal; multi-user authentication and per-role permissions are not enabled in this release. Normal records are stored in your configured MongoDB database and protected API routes require a valid admin session. Public form and shared-database links are deliberately separate from your private dashboard.
 
 ### 1. Sign-in and dashboard overview
 
@@ -218,24 +222,24 @@ This section describes the screens already in the portal plus the dashboard, Tas
 - Use a task for a specific action such as arrange a site visit, send a quotation, collect drawings, check a payment, call a contractor or prepare documents. Tasks are different from contact follow-up dates and can be used even when no contact is linked.
 - Every task has a title, description/checklist details, priority (Low, Normal, High or Urgent), due date, status (To do, In progress, Done or Cancelled), and optional related contact or project.
 - **Save / edit:** fill out the form and click Add task. Use Edit and Save task to change it. The tasks are stored in the MongoDB `Task` collection and remain after refresh or sign-out.
-- **Work through tasks:** Mark complete using the check action, reopen a completed task, or use Start to move it into progress. Delete removes it permanently after confirmation.
-- **Find work:** tabs filter Open, Overdue, Completed and All tasks. Search finds words in the title/details; the list prioritises open urgent/overdue work. The menu and overview show task counts.
+- **Work through tasks:** Mark complete using the check action, reopen a completed task, or use Start to move it into progress. Assign work to an existing contact marked as a team member. This is task assignment only; assigned contacts do not receive a separate login. Delete removes a task permanently after confirmation.
+- **Find work:** tabs filter Open, Overdue, Completed and All tasks. Search finds words in titles, descriptions, related contact/project names and assignees. Switch between the task list and a responsive monthly calendar; use previous / next month, Today, and click a task on a due date to edit it. Tasks without due dates remain available in List view. The list prioritises urgent and overdue work; the menu and overview show task counts.
 - **Export:** Export CSV downloads the tasks currently shown by the search/filter. It is a local file download; it does not send data to a third party.
 
-### 5. Private Notes (new)
+### 5. Private Notes and work assistant
 
 Private Notes is a personal notebook for internal-only information: meeting summaries, site observations, ideas, draft messages, checklists or reminders. It is separate from the existing `notes` field on each contact and project.
 
-- **Create:** open Private notes in the left navigation, write a title, optional body and comma-separated tags, then press **Save note**. The API validates the input and saves it in the MongoDB `PrivateNote` collection. A title is required; the body can be blank.
-- **Edit:** choose Edit on a saved note, modify its fields, then click Save changes. The editor explicitly saves on submit; unsaved typing is not automatically persisted.
-- **Search:** search matches title, body text and tags. Use Active, Pinned and Archived filters to focus the list. The screen loads up to 1,000 notes.
-- **Pin:** pins important notes toward the top of the list. Unpin them when they no longer need attention.
-- **Archive / restore:** archiving hides a note from Active and Pinned views without deleting it. Open Archived and choose Restore to bring it back.
-- **Copy:** copies the title, body and tags to your clipboard when your browser grants clipboard access.
-- **Export Markdown:** downloads the notes currently visible in the selected view as a `.md` file. This is separate from the full database backup. Store exported files securely.
-- **Delete:** permanently removes that note from MongoDB after a confirmation prompt. Archiving is the safer choice if you may need the note again.
-- **Privacy:** every notes API action checks the existing admin session and responses use no-store headers. Public intake forms and shared database links do not expose private notes. The activity log records note actions without storing note titles or bodies. The notes themselves are stored as normal database content, not separately application-encrypted; use a trusted MongoDB account and TLS, restrict Atlas access, and avoid putting passwords, authenticator setup keys, API credentials or card details in a note.
-- **Backup:** the Security full JSON backup includes `tasks`, `privateNotes` and `adminPreferences` alongside the previous backup sections. Backups include private text, so protect downloaded files. The portal does not provide a one-click restore button.
+- **Create and autosave:** open Private notes and add a title. Notes autosave to MongoDB after a short pause while you type; use **Save now** when you need immediate confirmation. A title is required.
+- **Organise:** add tags, folders, categories, a project association and a due date. Pin or favourite important notes; archive notes that are no longer active.
+- **Format and link:** use the formatting controls for headings, bold text, bullets and checklists. Valid pasted HTTP(S) URLs render as clickable links. Images uploaded from the editor are stored in MongoDB (up to 2 MB per image).
+- **Search and views:** search titles, content, tags, folders and categories. Filter active, pinned, favourites, archived and recycle-bin notes. Up to 5,000 notes are returned per view; larger installations should paginate before exceeding that amount.
+- **History:** edits retain up to 20 prior title/body/tag snapshots. Review a previous version and choose to restore it.
+- **Recycle bin:** Delete moves a note to the recycle bin and revokes its active share links. Restore it from Trash, or permanently delete it; permanent deletion also removes its attached images.
+- **Private sharing:** create a read-only snapshot link that expires after 1, 7, 30 or 90 days. You can revoke it at any time, which prevents future server access. Shared links expose only the selected snapshot and its images, never the admin dashboard. Important limitation: no website can reliably prevent a recipient from copying visible text or taking a screenshot/photo; share only content the recipient is allowed to see.
+- **AI work assistant:** optionally configure `OPENAI_API_KEY` on the server. The assistant drafts notes, task lists, summaries and reports. Workspace context is not sent unless you explicitly enable it. Review and confirm any content before saving it; AI output is not authoritative.
+- **Privacy:** private note API actions require the existing admin session and use no-store responses. Note text and image bytes are stored in MongoDB, not separately application-encrypted. Use a trusted MongoDB account with TLS and network restrictions, and never put passwords, authenticator setup keys, API credentials or payment-card data into notes.
+- **Backup and restore:** the full JSON backup includes private notes and note image data. In Security, select a backup JSON, review the validation preview, and then confirm the merge-only restore. The restore adds/updates matching IDs and never deletes records absent from the backup. It deliberately does not restore public tokens, private share tokens or shared-database row snapshots; recreate links that need to remain active.
 
 ### 6. Projects & leads
 
@@ -274,13 +278,13 @@ Reports summarise the data loaded from your database: contacts by category/statu
 - **Signed-in devices:** review sessions and revoke this device or other sessions. Revocation is server-side. After changing security settings, test a fresh private-window login before closing an existing trusted session.
 - **Auto-lock:** choose 5, 15, 30 or 60 minutes in Security. The preference is saved in MongoDB, not in browser storage, so it follows you across devices. The server also enforces its own session idle/expiry rules. Browser auto-lock is a convenience, not the server security boundary. “Never” remains for compatibility, but is not recommended.
 - **Activity log:** examine recent administrative/security activity. Note event entries intentionally avoid storing private-note bodies.
-- **Full backup:** download a JSON backup of contacts, projects, rates, form links (without their tokens), shared-room metadata (sensitive room fields are excluded by the existing backup route), tasks and private notes. Protect this file; it is a copy of sensitive business data. There is no restore-from-backup button in the dashboard. Use MongoDB Atlas backup tooling for robust disaster recovery.
+- **Full backup:** download a JSON backup of contacts, projects, rates, form links (without their tokens), shared-room metadata (sensitive room fields are excluded), tasks, private notes and note images. Protect this file as sensitive business data. Restore in Security by selecting a JSON backup, reviewing the preview, and confirming a merge-only restore. For robust disaster recovery, also enable MongoDB Atlas backups.
 
 ### 12. Workspace settings and deployment
 
 - Settings displays branding/database health information relevant to the existing deployment. Branding values such as app name, tagline, brand colour and logo URL are controlled by the documented environment variables.
 - Keep `MONGODB_URI`, the optional `MONGODB_DB`, admin credentials and `ADMIN_SESSION_SECRET` the same when updating the app. Changing `MONGODB_DB` can make a valid deployment appear to have lost all records because it is looking at another database. For tighter production defaults, set existing Vercel overrides `ADMIN_IDLE_MINUTES=60` and `ADMIN_SESSION_HOURS=24` unless you intentionally need different values; explicit environment variables override code defaults.
-- This update adds no new environment variable and no migration step. MongoDB creates the `tasks`, `privatenotes` and `adminpreferences` collections when the corresponding feature first writes data. Deploy by merging the incremental ZIP into the repository root, running the checks below, committing and pushing to the existing Vercel project, then testing the deployment logs and core flows.
+- No existing database migration is required; MongoDB creates the new note asset, note share and backup snapshot collections automatically on first use. This update adds optional `CRON_SECRET` and `BACKUP_RETENTION_DAYS` settings for scheduled backups. Task assignment uses existing team-member contacts; the app still has one authenticated admin and does not create teammate login accounts. Deploy by merging the incremental ZIP into the repository root, installing the declared dependencies, running the checks below, committing and pushing to the existing Vercel project, then testing the deployment logs and core flows.
 
 ### Suggested post-deployment smoke test
 

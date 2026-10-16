@@ -5,6 +5,7 @@ import { TOKEN_PATTERN, UNAVAILABLE, accessRoom, licenseCode } from "@/lib/room-
 import { tooManyRequests } from "@/lib/rate-limit";
 import { roomStatus } from "@/lib/rooms";
 import { DataRoom } from "@/models/DataRoom";
+import { NoteShare } from "@/models/NoteShare";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ token: string }> };
@@ -18,6 +19,8 @@ export async function GET(request: Request, context: Context) {
   try {
     if (await tooManyRequests(request, "room-meta", 120, 600)) return NextResponse.json({ error: "Too many requests. Please wait a few minutes." }, { status: 429, headers: HEADERS });
     await dbConnect();
+    const noteShare = await NoteShare.findOne({ token, active: true, expiresAt: { $gt: new Date() } }).select("title expiresAt").lean() as unknown as { title: string; expiresAt: Date } | null;
+    if (noteShare) return NextResponse.json({ kind: "note", title: noteShare.title, requiresPasscode: false, expiresAt: noteShare.expiresAt, locked: false, brand: brandInfo }, { headers: HEADERS });
     const room = (await DataRoom.findOne({ token }).select("-rows -accessLog").lean()) as unknown as (Parameters<typeof roomStatus>[0] & { title: string; recipientName: string; passcodeHash: string; expiresAt: Date }) | null;
     if (!room) return NextResponse.json({ error: UNAVAILABLE }, { status: 404, headers: HEADERS });
     const status = roomStatus(room);
@@ -36,6 +39,11 @@ export async function POST(request: Request, context: Context) {
   let passcode = "";
   try { const body = (await request.json()) as { passcode?: string }; passcode = String(body.passcode || "").slice(0, 200); } catch { /* no body: fine for links without a passcode */ }
   try {
+    if (!TOKEN_PATTERN.test(token)) return NextResponse.json({ error: UNAVAILABLE }, { status: 404, headers: HEADERS });
+    if (await tooManyRequests(request, "shared-content", 90, 600)) return NextResponse.json({ error: "Too many requests. Please wait a few minutes." }, { status: 429, headers: HEADERS });
+    await dbConnect();
+    const noteShare = await NoteShare.findOne({ token, active: true, expiresAt: { $gt: new Date() } }).lean() as unknown as { title: string; content: string; tags: string[]; assetIds: string[]; expiresAt: Date } | null;
+    if (noteShare) return NextResponse.json({ kind: "note", title: noteShare.title, content: noteShare.content, tags: noteShare.tags || [], assetIds: noteShare.assetIds || [], rowCount: 1, recipientName: "", message: "A read-only note shared from Civil At Hand.", expiresAt: noteShare.expiresAt, allowDownload: false, watermark: false, masked: false, licenseCode: "", brand: brandInfo }, { headers: HEADERS });
     const result = await accessRoom(request, token, passcode, "open");
     if (!result.ok) return NextResponse.json({ error: result.message, code: result.code, remaining: result.remaining }, { status: result.status, headers: HEADERS });
     const room = result.room;
