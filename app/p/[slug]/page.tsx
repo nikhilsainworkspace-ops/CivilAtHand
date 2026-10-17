@@ -47,15 +47,21 @@ export default async function PublicPageView(props: Props) {
     <header className="site-header">
       <div className="site-header-inner">
         <span className="site-brand">{logo ? <img src={logo} alt="" /> : null}<strong>{businessName}</strong></span>
-        {nav.length > 1 ? <nav aria-label="Pages">{nav.map((item) => <a key={item.slug} href={`/p/${item.slug}`} aria-current={item.slug === page.slug ? "page" : undefined}>{item.title}</a>)}</nav> : null}
+        <div className="site-header-actions">
+          {nav.length > 1 ? <nav aria-label="Pages">{nav.map((item) => <a key={item.slug} href={`/p/${item.slug}`} aria-current={item.slug === page.slug ? "page" : undefined}>{item.title}</a>)}</nav> : null}
+          {settings?.phone ? <a className="site-call" href={`tel:${settings.phone.replace(/[^+\d]/g, "")}`}>Call us</a> : settings?.email ? <a className="site-call" href={`mailto:${settings.email}`}>Contact</a> : null}
+        </div>
       </div>
     </header>
-    <main className="site-main">
-      <section className="site-hero">
-        {page.coverImageId ? <img className="site-cover" src={imageUrl(page.coverImageId, page, key)} alt="" /> : null}
+    <section className={`site-hero-band${page.coverImageId ? " has-cover" : ""}`}>
+      {page.coverImageId ? <img className="site-hero-image" src={imageUrl(page.coverImageId, page, key)} alt="" /> : null}
+      <div className="site-hero-inner">
+        <span className="site-eyebrow">{businessName}</span>
         <h1>{page.title}</h1>
         {page.summary ? <p className="site-summary">{page.summary}</p> : null}
-      </section>
+      </div>
+    </section>
+    <main className="site-main">
       {page.blocks.map((block, index) => {
         switch (block.type) {
           case "heading": return <h2 className="site-heading" key={index}>{block.text}</h2>;
