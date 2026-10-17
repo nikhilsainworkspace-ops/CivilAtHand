@@ -22,13 +22,13 @@ export default function ReportsPanel({ contacts, projects, links, rooms = [], du
     <div className="pr-tiles">
       <article><span>Total contacts</span><strong>{report.totalContacts}</strong><small>{duplicateCount ? `${duplicateCount} possible duplicates` : "No duplicates found"}</small></article>
       <article><span>Open leads</span><strong>{report.openLeads}</strong><small>Pipeline {formatINR(report.pipelineValue)}</small></article>
-      <article><span>Projects won</span><strong>{report.wonProjects}</strong><small>Ongoing + completed</small></article>
+      <article><span>Projects won</span><strong>{report.wonProjects}</strong><small>Awarded through closed</small></article>
       <article><span>Follow-ups overdue</span><strong>{report.followUpsOverdueContacts + report.followUpsOverdueProjects}</strong><small>{report.followUpsOverdueContacts} contacts · {report.followUpsOverdueProjects} projects</small></article>
     </div>
     <div className="pr-tiles">
-      <article><span>Billed to clients</span><strong>{formatINR(report.billedTotal)}</strong><small>Across all projects</small></article>
-      <article><span>Money received</span><strong>{formatINR(report.receivedTotal)}</strong><small>From project billing</small></article>
-      <article><span>Still to collect</span><strong>{formatINR(report.outstanding)}</strong><small>Billed minus received</small></article>
+      <article><span>Billed to clients</span><strong>{formatINR(report.billedTotal)}</strong><small>Typed on project records</small></article>
+      <article><span>Money received</span><strong>{formatINR(report.receivedTotal)}</strong><small>Typed on project records</small></article>
+      <article><span>Still to collect</span><strong>{formatINR(report.outstanding)}</strong><small>Project records; invoices are in Finance</small></article>
       <article><span>Data sold</span><strong>{formatINR(report.dataSold)}</strong><small>{report.dataPending ? `${formatINR(report.dataPending)} unpaid · ` : ""}{report.liveRooms} live link(s)</small></article>
     </div>
     <div className="rp-grid">
@@ -36,7 +36,7 @@ export default function ReportsPanel({ contacts, projects, links, rooms = [], du
       <section className="panel rp-card"><h2>Contacts by status</h2><Bars rows={report.byStatus} label={statusLabel} /></section>
       <section className="panel rp-card"><h2>Projects and leads by stage</h2>
         <div className="rp-table-wrap"><table className="rp-table"><thead><tr><th>Stage</th><th>Count</th><th>Estimated value</th></tr></thead><tbody>{report.projectRows.map((row) => <tr key={row.status}><td>{projectStatusLabel(row.status)}</td><td>{row.count}</td><td>{formatINR(row.value)}</td></tr>)}</tbody></table></div>
-        <p className="rp-note">Won = ongoing + completed ({report.wonProjects}). Lost = {report.lostProjects}.</p></section>
+        <p className="rp-note">Won = awarded, planning, active, completed, defects period or closed ({report.wonProjects}). Lost = {report.lostProjects}.</p></section>
       <section className="panel rp-card"><h2>New contacts, last 6 months</h2><div className="rp-months">{report.addedPerMonth.map((m) => <div key={m.key}><span className="rp-month-bar"><i style={{ height: `${Math.round((m.count / monthMax) * 100)}%` }} /></span><b>{m.count}</b><small>{m.label}</small></div>)}</div></section>
       <section className="panel rp-card"><h2>Top states</h2><Bars rows={report.byState} label={(key) => key} empty="Add a state to your contacts to see this." /></section>
       <section className="panel rp-card"><h2>Where contacts came from</h2><Bars rows={report.bySource} label={sourceLabel} />

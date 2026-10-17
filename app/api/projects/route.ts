@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/auth";
 import { dbConnect } from "@/lib/db";
+import { audit } from "@/lib/audit";
 import { InputError } from "@/lib/errors";
 import { normalizeProjectInput } from "@/lib/projects";
 import { Project } from "@/models/Project";
@@ -26,6 +27,7 @@ export async function POST(request: Request) {
     const normalized = normalizeProjectInput(payload);
     await dbConnect();
     const project = await Project.create(normalized);
+    await audit(request, "project-created", normalized.title.slice(0, 80));
     return NextResponse.json({ project: project.toObject() }, { status: 201 });
   } catch (error) {
     console.error("Project create error:", error);

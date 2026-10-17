@@ -65,6 +65,23 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "no-referrer" },
         ],
       },
+      // Print views of quotations, invoices and orders are private and personalised.
+      {
+        source: "/print/:path*",
+        headers: [
+          { key: "Cache-Control", value: "no-store, no-cache, max-age=0, must-revalidate" },
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+        ],
+      },
+      // Owner-published public pages. Indexing is decided per page (robots meta); unlisted pages carry a key.
+      {
+        source: "/p/:path*",
+        headers: [
+          { key: "Cache-Control", value: "no-store, max-age=0" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+        ],
+      },
       {
         source: "/shared/:path*",
         headers: [

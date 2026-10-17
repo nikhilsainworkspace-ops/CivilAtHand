@@ -1,10 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import type { CSSProperties, ReactNode } from "react";
 import "./globals.css";
+import "./design-system.css";
 import { brand } from "@/lib/brand";
 
 export const metadata: Metadata = {
-  title: `${brand.name} | Civil Works Network`,
+  title: brand.name,
   description: brand.tagline,
   applicationName: brand.name,
   metadataBase: brand.siteUrl ? new URL(brand.siteUrl) : undefined,

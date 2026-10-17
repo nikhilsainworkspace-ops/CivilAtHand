@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/auth";
 import { dbConnect } from "@/lib/db";
 import { InputError } from "@/lib/errors";
-import { normalizeProjectInput, projectStatusValues } from "@/lib/projects";
+import { audit } from "@/lib/audit";
+import { normalizeProjectInput, normalizeProjectPatch, projectStatusValues } from "@/lib/projects";
 import { Project } from "@/models/Project";
 
 export const runtime = "nodejs";
@@ -19,6 +20,7 @@ export async function PUT(request: Request, context: Context) {
     await dbConnect();
     const project = await Project.findByIdAndUpdate(id, normalized, { new: true, runValidators: true }).lean();
     if (!project) return NextResponse.json({ error: "Project not found." }, { status: 404 });
+    await audit(request, "project-updated", normalized.title.slice(0, 80));
     return NextResponse.json({ project });
   } catch (error) {
     console.error("Project update error:", error);
@@ -33,9 +35,9 @@ export async function PATCH(request: Request, context: Context) {
   const { id } = await context.params;
   if (!mongoose.isValidObjectId(id)) return NextResponse.json({ error: "Invalid project ID." }, { status: 400 });
   try {
-    const body = (await request.json()) as { followUpAt?: string | null; status?: string };
+    const body = (await request.json()) as { followUpAt?: string | null; status?: string } & Record<string, unknown>;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const update: Record<string, any> = {};
+    const update: Record<string, any> = { ...normalizeProjectPatch(body) };
     if ("followUpAt" in body) {
       if (body.followUpAt === null || body.followUpAt === "") update.followUpAt = null;
       else if (typeof body.followUpAt === "string" && !Number.isNaN(Date.parse(body.followUpAt))) update.followUpAt = new Date(body.followUpAt);
@@ -49,14 +51,16 @@ export async function PATCH(request: Request, context: Context) {
     await dbConnect();
     const project = await Project.findByIdAndUpdate(id, update, { new: true, runValidators: true }).lean();
     if (!project) return NextResponse.json({ error: "Project not found." }, { status: 404 });
+    if (update.status) await audit(request, "project-stage-changed", String(update.status));
     return NextResponse.json({ project });
   } catch (error) {
     console.error("Project quick update error:", error);
+    if (error instanceof InputError) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ error: "Could not update this project." }, { status: 503 });
   }
 }
 
-export async function DELETE(_request: Request, context: Context) {
+export async function DELETE(request: Request, context: Context) {
   if (!(await isAdmin())) return NextResponse.json({ error: "Sign in to continue." }, { status: 401 });
   const { id } = await context.params;
   if (!mongoose.isValidObjectId(id)) return NextResponse.json({ error: "Invalid project ID." }, { status: 400 });
@@ -64,6 +68,7 @@ export async function DELETE(_request: Request, context: Context) {
     await dbConnect();
     const result = await Project.findByIdAndDelete(id);
     if (!result) return NextResponse.json({ error: "Project not found." }, { status: 404 });
+    await audit(request, "project-deleted", String(result.title || "").slice(0, 80));
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Project delete error:", error);

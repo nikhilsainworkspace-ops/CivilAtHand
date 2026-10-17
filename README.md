@@ -25,6 +25,34 @@ For detailed contact fields, Team directory, Google Contacts CSV import, and sha
 | **Security centre** | 2-step verification, signed-in devices, activity log, auto-lock, JSON backup with note images, validated merge restore and restore preview. |
 | **Branding** | Name, tagline, colour, logo, favicon and domain come from environment variables. |
 
+## Version 4 — construction management (October 2026)
+
+Version 4 turns the CRM into a complete construction business workspace. Everything from earlier versions still works; the new modules sit alongside it and share the same private sign-in.
+
+| Area | What it does |
+|---|---|
+| **Command centre** | The overview now starts with what needs a decision: overdue tasks and follow-ups, overdue client invoices, supplier bills due, quotations awaiting a decision, material requests to approve, site reports to review, low stock, expiring documents and tender deadlines. Every line opens the matching records. Below it: active projects with budget against actual cost, money in and out for a period, next tasks, upcoming deadlines and recent activity. |
+| **Project workspace** | Open any project for tabs covering overview, milestones, estimates, site diary, materials (requested / ordered / received / consumed / on site), labour, money (invoices, bills, expenses), documents and tasks. Projects gain site address, contract reference, manager, scope, cost budget, recorded progress, actual start/finish and milestones. New stages: Estimation, Awarded, Planning, Defects liability period and Closed (the original seven are unchanged). |
+| **Site diary** | Daily site reports: work done, measured quantities, labour, materials, equipment, delays, safety, next-day plan. Draft → submitted → approved (approved reports are locked) or returned for changes. Printable. |
+| **Estimates & quotations** | BOQ editor with material (plus wastage), labour, equipment and other rates; overheads, contingency, margin, discount and tax; rates picked from the rate book keep their source and date, and manual changes are flagged. Excel/CSV BOQ import with preview. Sent or decided versions are locked — changes go into numbered revisions (QT-2026-0007 R1). Printable client quotation and internal cost sheet. An approved quotation can create or update its project. |
+| **Materials & purchasing** | Material master with reorder levels; an immutable stock ledger (receipts, issues to site, transfers, consumption, wastage, returns, adjustments) with reversal instead of editing; material requests with approval; purchase orders with partial goods receipts that update stock exactly once; draft supplier bills from an order. |
+| **Labour & attendance** | Worker records (not login accounts; only the last four characters of an ID are stored), daily muster per site, wage sheet with the formula on screen, advances, deductions, bonuses and wage payments. |
+| **Invoices, bills & expenses** | Client invoices and supplier/subcontractor bills with retention, part payments and void; status is always calculated from recorded payments and a payment can never exceed the balance. Expenses by category. Project cost summary (bills + expenses + labour, with purchase orders shown separately as commitments). Printable invoices with amount in words. |
+| **Documents & approvals** | Document register with categories, project links, numbered versions (PDF, images, DOCX, XLSX, PPTX, DWG, DXF, CSV, TXT up to 4 MB, checked by content), renewal dates and approval status. Files are only downloadable by the signed-in owner. |
+| **Tenders & bids** | Opportunities with deadlines, EMD, bid/no-bid decision, eligibility checklist, outcome and win rate; a won tender can create its project. |
+| **Public pages** | Optional company profile, services, portfolio, project showcase and contact pages built from text, list, fact, image, gallery, button and contact blocks. Pages are drafts until you publish; unlisted pages need a private link; pages can expire. Only what you type or upload for that page is shown — never contacts, projects, finance, documents or notes. Live at `/p/<address>`. |
+| **Settings** | Business profile printed on documents, currency, time zone, tax label and default rate, document number prefixes, quotation terms, bank details, unit/project-type/material/expense/trade lists and overview alerts. |
+| **Reports** | New business reports: receivables and payables ageing, expenses by category, purchases by supplier, quotations, tender outcomes, attendance by site, site reports and stock valuation, each with CSV export. |
+| **Design** | A calm, consistent interface across every screen: warm neutral background, navy primary actions, grouped navigation with a mobile menu, one global search (Ctrl/⌘ K) across all modules, a minimal sign-in page and accessible dialogs and confirmations. |
+
+**New MongoDB collections** (created automatically on first use): `sitereports`, `estimates`, `materials`, `stockmovements`, `materialrequests`, `purchaseorders`, `workers`, `attendances`, `workertxns`, `invoices`, `expenses`, `projectdocuments`, `documentfiles`, `tenders`, `publicpages`, `pageimages`, `counters`, `businesssettings`. No existing collection or field is renamed or removed and no migration script is needed.
+
+**Backups** include all new collections, document files and page images (backup format version 5; versions 3 and 4 still restore). Restored public pages come back unpublished. Because document files are included, downloaded backups can exceed the 4 MB browser restore limit — use the server-side snapshots in Security for large restores, and keep MongoDB Atlas backups on.
+
+**No new environment variables are required.** The default brand colour is now navy `#1f3a5c`; an existing `NEXT_PUBLIC_BRAND_COLOR` still takes precedence.
+
+**Honest limits:** tax figures are calculated from the rates you enter and are not a certification of GST compliance; the wage sheet is a working calculation, not statutory payroll (no PF/ESI/TDS unless you record them as deductions); there are no email/SMS notifications; staff log-ins and role permissions are not part of this release (the app remains single-owner).
+
 ## Dashboard redesign (October 2026)
 
 The admin workspace now uses a clear navy navigation rail, blue active states, a light page background, card-based summaries, consistent icon colours and responsive layouts. The redesign is visual and organizational: it does not remove any existing modules or data-management actions.
@@ -148,6 +176,8 @@ This is a private, single-admin portal. Nobody can register; the only outsiders 
 - **Throttling:** failed logins (8 tries, then 15 minutes); public form submissions (20 per hour per device); client link requests; passcode attempts per link.
 - **Activity log:** sign-ins (and failures), deletions, bulk changes, merges, imports, exports, backups and every shared-link change are recorded for 180 days. No secrets are stored in it.
 - **Client links:** 192-bit random tokens, `noindex`, no-store, no referrer; passcodes are stored only as scrypt hashes; the client page can read only its own frozen copy.
+- **Public pages (`/p/…`):** drafts and expired pages return “not found”; unlisted pages require their private key (compared in constant time); the public loader returns an explicit allowlist of page fields; images are served only while a live page uses them; links are restricted to https, mailto, tel, /p/ and /join/; text is rendered as plain text. Publishing, unpublishing and new private links are recorded in the activity log.
+- **Print views (`/print/…`) and document downloads** require the same server-checked session as the dashboard and are sent with no-store and noindex headers.
 - **Headers:** Content-Security-Policy, HSTS, nosniff, frame deny and COOP are set in `next.config.ts`. CSV export neutralises spreadsheet formulas. The site is `noindex`.
 - **Your part:** use a long unique password, turn on 2-step verification, keep Atlas network access and your Vercel account protected (2FA there too), and download a backup after big changes.
 
@@ -170,11 +200,15 @@ This is a private, single-admin portal. Nobody can register; the only outsiders 
 
 ```text
 app/api/auth|contacts|projects|tasks|notes|links|public|export|import|health   server routes (admin routes call isAdmin())
+app/api/estimates|materials|stock|purchase-orders|material-requests|workers|attendance|worker-transactions|invoices|expenses|documents|tenders|site-reports|public-pages|settings|overview|search|reports   version 4 routes (all via adminHandler → isAdmin())
+app/p/[slug]/            owner-published public pages;  app/print/[kind]/[id]/  private print views
 app/join/[token]/        public form page
 components/              dashboard, follow-ups, task planner, projects, reports, public form
 lib/                     auth, brand, db, categories (form fields), duplicates, followups, projects, reports, csv, validation
+lib/entities.ts, lib/entity-spec.ts, lib/crud.ts   version 4 field specs, shared validation and the admin route builder
+lib/estimates.ts, finance.ts, inventory.ts, workforce.ts   pure calculations (tests/erp.test.ts)
 models/                  Contact, Project, Task, PrivateNote, ShareLink, LoginAttempt (Mongoose)
-tests/logic.test.ts      unit tests
+tests/logic.test.ts      unit tests;  tests/erp.test.ts  version 4 calculations;  tests/integration/  route-level tests with an in-memory database
 public/                  logo, icons, favicon
 ```
 

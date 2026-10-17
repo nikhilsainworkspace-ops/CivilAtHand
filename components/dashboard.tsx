@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type CSSProperties } from "react";
 import { categories, contactStatuses, getFields, categoryLabel, type FormField } from "@/lib/categories";
 import { clearBrowserAppState } from "@/lib/client-api";
 import { brand } from "@/lib/brand";
@@ -18,10 +18,42 @@ import MergeModal from "@/components/merge-modal";
 import InteractionLog from "@/components/interaction-log";
 import TasksPanel from "@/components/tasks-panel";
 import PrivateNotesPanel from "@/components/private-notes-panel";
+import BusinessReports from "@/components/business-reports";
+import DocumentsPanel from "@/components/documents-panel";
+import EstimatesPanel from "@/components/estimates-panel";
+import FinancePanel from "@/components/finance-panel";
+import OverviewPanel from "@/components/overview-panel";
+import ProcurementPanel from "@/components/procurement-panel";
+import ProjectWorkspace from "@/components/project-workspace";
+import PublicPagesPanel from "@/components/public-pages-panel";
+import SettingsPanel from "@/components/settings-panel";
+import SiteReportsPanel from "@/components/site-reports-panel";
+import TendersPanel from "@/components/tenders-panel";
+import WorkforcePanel from "@/components/workforce-panel";
+import { ConfirmProvider, Icon, WorkspaceProvider, type Workspace } from "@/components/ui";
+import { defaultSettings, formatMoney, withDefaults, type BusinessSettings } from "@/lib/settings";
+import { finishedStatuses } from "@/lib/projects";
 
 type Session = { authenticated: boolean; configured: boolean; appName: string; twoFactor?: boolean };
 type Toast = { type: "success" | "error" | "info"; message: string };
-type Tab = "overview" | "followups" | "tasks" | "notes" | "contacts" | "team" | "projects" | "rates" | "rooms" | "reports" | "links" | "security" | "settings";
+type Tab = "overview" | "followups" | "tasks" | "notes" | "contacts" | "team" | "projects" | "rates" | "rooms" | "reports" | "links" | "security" | "settings"
+  | "project" | "site" | "estimates" | "procurement" | "workforce" | "finance" | "documents" | "tenders" | "pages";
+type Focus = { kind: string; id: string; filter?: string; seq: number };
+type ServerHit = { kind: string; id: string; title: string; subtitle: string };
+/** Navigation, grouped the way the business works. Every earlier panel is still here. */
+const navGroups: { id: string; label: string; items: [Tab, string, string][] }[] = [
+  { id: "today", label: "Overview", items: [["overview", "Command centre", "overview"], ["followups", "Follow-ups", "clock"], ["tasks", "Task planner", "calendar"], ["notes", "Private notes", "note"]] },
+  { id: "crm", label: "Business & CRM", items: [["contacts", "Contacts", "contacts"], ["team", "Team directory", "users"], ["tenders", "Tenders & bids", "gavel"]] },
+  { id: "projects", label: "Projects & site", items: [["projects", "Projects & leads", "briefcase"], ["site", "Site diary", "clipboard"]] },
+  { id: "commercial", label: "Estimation", items: [["estimates", "Estimates & quotations", "calculator"], ["rates", "Rate book", "database"]] },
+  { id: "supply", label: "Procurement & stock", items: [["procurement", "Materials & purchasing", "box"]] },
+  { id: "people", label: "Workforce", items: [["workforce", "Labour & attendance", "helmet"]] },
+  { id: "money", label: "Finance", items: [["finance", "Invoices, bills & expenses", "wallet"]] },
+  { id: "docs", label: "Documents", items: [["documents", "Documents & approvals", "folder"]] },
+  { id: "insight", label: "Reports", items: [["reports", "Reports", "chart"]] },
+  { id: "public", label: "Public pages & forms", items: [["links", "Public form links", "links"], ["pages", "Public pages", "globe"], ["rooms", "Shared databases", "share"]] },
+  { id: "admin", label: "Administration", items: [["settings", "Settings", "settings"], ["security", "Security & backups", "lock"]] },
+];
 type GlobalSearchResult =
   | { kind: "contact"; id: string; title: string; subtitle: string; record: ContactRecord }
   | { kind: "project"; id: string; title: string; subtitle: string; record: ProjectRecord }
@@ -34,7 +66,6 @@ const taskPriorityLabels: Record<TaskRecord["priority"], string> = { low: "Low",
 const taskStatusLabels: Record<TaskRecord["status"], string> = { todo: "Pending", "in-progress": "In progress", done: "Completed", cancelled: "Cancelled" };
 
 const brandName = brand.name;
-const brandTagline = brand.tagline;
 const brandLogo = brand.logoUrl;
 const brandColor = brand.color;
 
@@ -61,38 +92,23 @@ function relativeDate(value?: string) { if (!value) return "No date"; const date
 function statusLabel(status: string) { return contactStatuses.find((item) => item.value === status)?.label || status; }
 function StatusPill({ status }: { status: string }) { return <span className={`status-pill status-${status}`}>{statusLabel(status)}</span>; }
 function BrandMark({ large = false }: { large?: boolean }) { return brandLogo ? <img className={large ? "brand-logo-large" : "brand-logo"} src={brandLogo} alt={`${brandName} logo`} /> : <span className={`brand-mark ${large ? "large-mark" : ""}`} aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M4 25h24M7 25V13l9-7 9 7v12M12 25v-8h8v8" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"/><path d="M11 13h2m6 0h2" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"/></svg></span>; }
-function Icon({ name }: { name: "overview" | "contacts" | "links" | "settings" | "search" | "plus" | "download" | "external" | "edit" | "trash" | "copy" | "check" | "lock" | "logout" | "database" | "users" | "calendar" | "arrow" | "filter" | "share" | "mail" | "upload" | "briefcase" | "chart" | "note" }) {
-  const paths: Record<string, ReactNode> = {
-    overview: <><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></>,
-    contacts: <><path d="M16 20c0-3-2.5-5-6-5s-6 2-6 5v1h12z"/><circle cx="10" cy="8" r="4"/><path d="M16 4.5a4 4 0 0 1 0 7.5M18 15c2.8.4 4 2.1 4 4.3V21h-4"/></>,
-    links: <><path d="M10 13a5 5 0 0 0 7.1 0l2.8-2.8a5 5 0 0 0-7.1-7.1L11.2 4.7"/><path d="M14 11a5 5 0 0 0-7.1 0l-2.8 2.8a5 5 0 0 0 7.1 7.1l1.6-1.6"/></>,
-    settings: <><circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.6a8 8 0 0 1-1.8 1l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.8-1l-1.7.6-1.4-2.4 1.4-1.1a7 7 0 0 1 0-2L5.7 12l1.4-2.4 1.7.6a8 8 0 0 1 1.8-1l.3-1.8h2.8l.3 1.8a8 8 0 0 1 1.8 1l1.7-.6 1.4 2.4-1.4 1.1a7 7 0 0 1-.1 1.9z" transform="translate(-1 -1) scale(1.08)"/></>,
-    search: <><circle cx="10.8" cy="10.8" r="6.3"/><path d="m16 16 4.5 4.5"/></>,
-    plus: <><path d="M12 5v14M5 12h14"/></>, download: <><path d="M12 3v12m-5-5 5 5 5-5"/><path d="M4 17v4h16v-4"/></>, external: <><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></>,
-    edit: <><path d="m14 5 5 5M4 20l4.2-.8L19 8.4a2.1 2.1 0 0 0-3-3L5.2 16.2 4 20z"/></>, trash: <><path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"/></>, copy: <><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></>, check: <path d="m5 12 4 4L19 6"/>, lock: <><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 1 1 8 0v3"/></>, logout: <><path d="M10 17l5-5-5-5M15 12H3"/><path d="M12 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6"/></>, database: <><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></>, users: <><circle cx="9" cy="8" r="3.5"/><path d="M2 20v-1a7 7 0 0 1 14 0v1M16 5.5a3.5 3.5 0 0 1 0 6.8M18 15a5.2 5.2 0 0 1 4 5"/></>, calendar: <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></>, arrow: <><path d="M5 12h14M13 6l6 6-6 6"/></>, filter: <><path d="M3 5h18M6 12h12M10 19h4"/></>, share: <><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/></>, mail: <><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></>, upload: <><path d="M12 16V4m-5 5 5-5 5 5"/><path d="M4 16v4h16v-4"/></>,
-    briefcase: <><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18"/></>, chart: <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></>, note: <><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h6"/></>,
-  };
-  return <svg className="icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
-}
 
 function LoginScreen({ configured, twoFactor, onLogin, toast, clearToast }: { configured: boolean; twoFactor: boolean; onLogin: (user: string, pass: string, code: string) => Promise<void>; toast: Toast | null; clearToast: () => void }) {
   const [username, setUsername] = useState(""); const [password, setPassword] = useState(""); const [busy, setBusy] = useState(false); const [showPassword, setShowPassword] = useState(false); const [code, setCode] = useState("");
-  async function submit(event: FormEvent) { event.preventDefault(); setBusy(true); try { await onLogin(username, password, code); } catch { /* toast is set by parent */ } finally { setBusy(false); } }
-  return <main className="login-shell" style={{ "--brand": brandColor } as CSSProperties}>
-    <div className="login-background"><span className="grid-lines" /><span className="orb orb-one" /><span className="orb orb-two" /></div>
-    <div className="login-brand"><BrandMark large /><div><strong>{brandName}</strong><small>{brandTagline}</small></div></div>
-    <div className="login-layout">
-      <section className="login-copy"><span className="eyebrow light-eyebrow">PRIVATE WORKSPACE · CIVIL INDUSTRY</span><h1>Your network.<br /><em>Under control.</em></h1><p>One calm place to organise manpower, suppliers, contractors, clients and the relationships that keep projects moving.</p>
-        <div className="login-highlights"><div><span className="highlight-icon">01</span><span><strong>One reliable database</strong><small>Search, update and export your network.</small></span></div><div><span className="highlight-icon">02</span><span><strong>Easy public intake forms</strong><small>Share a link. Get structured details back.</small></span></div><div><span className="highlight-icon">03</span><span><strong>Designed for civil work</strong><small>Built around the people and resources you need.</small></span></div></div>
-      </section>
-      <section className="login-card"><div className="login-card-icon"><Icon name="lock" /></div><p className="eyebrow">ADMIN ACCESS</p><h2>Welcome back</h2><p className="login-subtitle">Sign in to open your private management panel.</p>
-        {toast ? <div className={`toast toast-${toast.type}`} role="alert">{toast.message}<button onClick={clearToast} aria-label="Dismiss message">×</button></div> : null}
-        {!configured ? <div className="config-warning"><strong>One-time setup required</strong><p>Add <code>ADMIN_USERNAME</code>, <code>ADMIN_PASSWORD</code>, and a unique 32+ character <code>ADMIN_SESSION_SECRET</code> in Vercel Environment Variables, along with MongoDB settings. See README.md.</p></div> : null}
-        <form onSubmit={submit} className="login-form" autoComplete="off"><label className="field-wrap"><span>Username</span><input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Your admin username" autoComplete="off" required /></label><label className="field-wrap"><span>Password</span><div className="password-wrap"><input value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Your password" type={showPassword ? "text" : "password"} autoComplete="off" required /><button className="show-password" type="button" onClick={() => setShowPassword(!showPassword)}>{showPassword ? "Hide" : "Show"}</button></div></label>{twoFactor ? <label className="field-wrap"><span>6-digit code from your authenticator app</span><input value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="123456" inputMode="numeric" autoComplete="off" maxLength={6} required /></label> : null}<button className="primary-button login-submit" type="submit" disabled={busy}>{busy ? "Signing in…" : "Unlock dashboard"}<Icon name="arrow" /></button></form>
-        <div className="login-card-footer"><Icon name="lock" /><span>Private access · Server-checked session{twoFactor ? " · 2-step verification" : ""}</span></div>
-      </section>
-    </div>
-    <footer className="login-footer"><span>© {new Date().getFullYear()} {brandName}</span><span>Made for civil engineering professionals</span><span>Personal management workspace</span></footer>
+  async function submit(event: FormEvent) { event.preventDefault(); clearToast(); setBusy(true); try { await onLogin(username, password, code); } catch { /* the message is shown by the parent */ } finally { setBusy(false); } }
+  return <main className="auth-shell" style={{ "--brand": brandColor } as CSSProperties}>
+    <section className="auth-panel" aria-labelledby="auth-title">
+      <div className="auth-brand"><BrandMark large /><span>{brandName}</span></div>
+      <h1 id="auth-title" className="auth-title">Sign in</h1>
+      {toast ? <div className={`auth-alert auth-alert-${toast.type}`} role="alert">{toast.message}</div> : null}
+      {!configured ? <div className="auth-alert auth-alert-info" role="status">Sign-in is not set up yet. Add <code>ADMIN_USERNAME</code>, <code>ADMIN_PASSWORD</code> and a 32+ character <code>ADMIN_SESSION_SECRET</code> to the server environment, then redeploy.</div> : null}
+      <form onSubmit={submit} className="auth-form">
+        <label className="auth-field"><span>Username</span><input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" autoCapitalize="none" spellCheck={false} required disabled={!configured} /></label>
+        <label className="auth-field"><span>Password</span><span className="auth-password"><input value={password} onChange={(event) => setPassword(event.target.value)} type={showPassword ? "text" : "password"} autoComplete="current-password" required disabled={!configured} /><button type="button" className="auth-reveal" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword}><Icon name={showPassword ? "eyeOff" : "eye"} size={18} /></button></span></label>
+        {twoFactor ? <label className="auth-field"><span>Authenticator code</span><input value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required disabled={!configured} /></label> : null}
+        <button className="auth-submit" type="submit" disabled={busy || !configured}>{busy ? "Signing in…" : "Sign in"}</button>
+      </form>
+    </section>
   </main>;
 }
 
@@ -215,18 +231,6 @@ export default function Dashboard() {
   const [tab, setTab] = useState<Tab>("overview");
   const [navFilter, setNavFilter] = useState("");
   const sidebarNavRef = useRef<HTMLElement | null>(null);
-  const sidebarNavItems: [Tab, string][] = [
-    ["overview", "Overview"], ["followups", "Follow-ups"], ["tasks", "Task planner"], ["notes", "Private notes"],
-    ["contacts", "Contact database"], ["team", "Team directory"], ["projects", "Projects & leads"], ["rates", "Rate book"], ["rooms", "Shared databases"],
-    ["reports", "Reports"], ["links", "Public form links"], ["security", "Security"], ["settings", "Settings"],
-  ];
-  const visibleSidebarNavItems = sidebarNavItems.filter(([, label]) => label.toLowerCase().includes(navFilter.trim().toLowerCase()));
-  const scrollSidebarNav = (direction: -1 | 1) => {
-    const nav = sidebarNavRef.current;
-    if (!nav) return;
-    const horizontal = window.matchMedia("(max-width: 820px)").matches;
-    nav.scrollBy({ left: horizontal ? direction * 190 : 0, top: horizontal ? 0 : direction * 190, behavior: "smooth" });
-  };
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => sidebarNavRef.current?.querySelector<HTMLElement>(".nav-item-active")?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" }));
     return () => window.cancelAnimationFrame(frame);
@@ -254,6 +258,14 @@ export default function Dashboard() {
   const [mergeOpen, setMergeOpen] = useState(false);
   const [privacy, setPrivacy] = useState(false);
   const [autoLock, setAutoLock] = useState(15);
+  const [settings, setSettings] = useState<BusinessSettings>(defaultSettings);
+  const [focus, setFocus] = useState<Focus | null>(null);
+  const [workspaceProjectId, setWorkspaceProjectId] = useState("");
+  const [workspaceVersion, setWorkspaceVersion] = useState(0);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
+  const [serverHits, setServerHits] = useState<ServerHit[]>([]);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
   const lastActivity = useRef(Date.now());
   const lastServerTouch = useRef(Date.now());
   useEffect(() => {
@@ -362,10 +374,16 @@ export default function Dashboard() {
     setLinkModal(false); setSearch(""); setAppliedSearch(""); setFilterCategory(""); setFilterStatus("");
     setGlobalSearch(""); setGlobalSearchOpen(false); setNavFilter(""); setTab("overview"); setToast(null);
     setAutoLock(15);
+    setSettings(defaultSettings); setFocus(null); setWorkspaceProjectId(""); setMobileNavOpen(false); setServerHits([]); setQuickAddOpen(false);
     if (importInputRef.current) importInputRef.current.value = "";
   }
 
   const notify = useCallback((message: string, type: Toast["type"] = "success") => setToast({ message, type }), []);
+  useEffect(() => {
+    if (!toast || toast.type === "error") return;
+    const timer = window.setTimeout(() => setToast((current) => (current === toast ? null : current)), 6000);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
   const clearFocusedTask = useCallback(() => setFocusedTaskId(null), []);
   const clearFocusedNote = useCallback(() => setFocusedNoteId(null), []);
   const loadData = useCallback(async (showError = true) => {
@@ -373,6 +391,7 @@ export default function Dashboard() {
       const [contactData, linkData, projectData, roomData, rateData, healthData, taskData, noteData, trashNoteData, preferenceData] = await Promise.all([
         jsonRequest("/api/contacts?limit=5000"), jsonRequest("/api/links"), jsonRequest("/api/projects").catch(() => ({ projects: [] })), jsonRequest("/api/rooms").catch(() => ({ rooms: [] })), jsonRequest("/api/rates").catch(() => ({ rates: [] })), jsonRequest("/api/health").catch((error) => ({ database: "error", message: error.message })), jsonRequest("/api/tasks").catch(() => ({ tasks: [] })), jsonRequest("/api/notes"), jsonRequest("/api/notes?view=trash").catch(() => ({ notes: [] })), jsonRequest("/api/security/preferences").catch(() => ({ autoLockMinutes: 15 })),
       ]);
+      jsonRequest("/api/settings").then((data) => setSettings(withDefaults(data.settings))).catch(() => undefined);
       setContacts(contactData.contacts || []); setLinks(linkData.links || []); setProjects(projectData.projects || []); setRooms(roomData.rooms || []); setRates(rateData.rates || []); setHealth(healthData); setTasks(taskData.tasks || []); setNotes([...(noteData.notes || []), ...(trashNoteData.notes || [])]);
       const storedAutoLock = Number(preferenceData.autoLockMinutes);
       setAutoLock([0, 5, 15, 30, 60].includes(storedAutoLock) ? storedAutoLock : 15);
@@ -480,7 +499,7 @@ export default function Dashboard() {
       const isNew = modalProject === "new";
       const endpoint = isNew ? "/api/projects" : `/api/projects/${(modalProject as ProjectRecord)._id}`;
       await jsonRequest(endpoint, { method: isNew ? "POST" : "PUT", body: JSON.stringify(payload) });
-      setModalProject(null); notify(isNew ? "Project saved." : "Project updated."); await loadData(false);
+      setModalProject(null); notify(isNew ? "Project saved." : "Project updated."); await loadData(false); setWorkspaceVersion((value) => value + 1);
     } finally { setSavingProject(false); }
   }
   async function deleteProject(project: ProjectRecord) {
@@ -566,16 +585,7 @@ export default function Dashboard() {
   const counts = useMemo(() => ({ total: contacts.length, new: contacts.filter((item) => item.status === "new").length, active: contacts.filter((item) => item.status === "active" || item.status === "qualified").length, followUps: contacts.filter((item) => item.followUpAt && item.status !== "closed" && item.followUpAt.slice(0, 10) <= dateKey(new Date())).length + projects.filter((item) => item.followUpAt && !["completed", "lost"].includes(item.status) && item.followUpAt.slice(0, 10) <= dateKey(new Date())).length, links: links.filter((item) => item.active && (!item.expiresAt || new Date(item.expiresAt).getTime() > Date.now())).length }), [contacts, links, projects]);
   const categoryCounts = useMemo(() => categories.map((category) => ({ ...category, count: contacts.filter((item) => item.category === category.id).length })), [contacts]);
   const openTasks = useMemo(() => tasks.filter((task) => task.status !== "done" && task.status !== "cancelled"), [tasks]);
-  const dashboardTasks = useMemo(() => [...openTasks].sort((a, b) => {
-    const dueA = a.dueAt ? new Date(a.dueAt).getTime() : Number.POSITIVE_INFINITY;
-    const dueB = b.dueAt ? new Date(b.dueAt).getTime() : Number.POSITIVE_INFINITY;
-    if (dueA !== dueB) return dueA - dueB;
-    const rank: Record<TaskRecord["priority"], number> = { urgent: 0, high: 1, normal: 2, low: 3 };
-    return rank[a.priority] - rank[b.priority];
-  }).slice(0, 6), [openTasks]);
   const overdueTaskCount = useMemo(() => openTasks.filter((task) => task.dueAt && new Date(task.dueAt).getTime() < new Date(new Date().toDateString()).getTime()).length, [openTasks]);
-  const completedTaskCount = useMemo(() => tasks.filter((task) => task.status === "done").length, [tasks]);
-  const activeProjects = useMemo(() => projects.filter((project) => !["completed", "lost"].includes(project.status)), [projects]);
   const activeNotes = useMemo(() => notes.filter((note) => !note.archived && !note.deletedAt).sort((a, b) => Number(b.pinned) - Number(a.pinned) || new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()), [notes]);
   const globalSearchResults = useMemo<GlobalSearchResult[]>(() => {
     const query = globalSearch.trim().toLowerCase();
@@ -616,13 +626,51 @@ export default function Dashboard() {
     setGlobalSearchOpen(false);
     setGlobalSearch("");
     if (result.kind === "contact") { setTab(result.record.isTeamMember ? "team" : "contacts"); setModalContact(result.record); return; }
-    if (result.kind === "project") { setTab("projects"); setModalProject(result.record); return; }
+    if (result.kind === "project") { navigate("project", { kind: "project", id: result.record._id }); return; }
     if (result.kind === "task") { setFocusedTaskId(result.id); setTab("tasks"); return; }
     if (result.kind === "rate") { setTab("rates"); return; }
     if (result.kind === "room") { setTab("rooms"); return; }
     if (result.kind === "link") { setTab("links"); return; }
     setFocusedNoteId(result.id); setTab("notes");
   }
+  const navigate = useCallback((next: string, spec?: { kind: string; id: string; filter?: string }) => {
+    if (next === "project" && spec?.id) { setWorkspaceProjectId(spec.id); setWorkspaceVersion((value) => value + 1); setTab("project"); }
+    else setTab(next as Tab);
+    if (next === "tasks" && spec?.kind === "task") setFocusedTaskId(spec.id);
+    setFocus(spec ? { ...spec, seq: Date.now() } : null);
+    setMobileNavOpen(false); setQuickAddOpen(false);
+    try { window.scrollTo({ top: 0 }); } catch { /* older browsers */ }
+  }, []);
+  const clearFocus = useCallback(() => setFocus(null), []);
+  const saveBusinessSettings = useCallback(async (patch: Partial<BusinessSettings>) => {
+    const data = await jsonRequest("/api/settings", { method: "PUT", body: JSON.stringify(patch) });
+    setSettings(withDefaults(data.settings)); notify("Settings saved.");
+  }, [notify]);
+  const workspace = useMemo<Workspace>(() => ({
+    settings, money: (value, compact) => formatMoney(value, settings.currency, { compact }), contacts, projects, notify,
+    reloadCore: () => loadData(false), navigate, saveSettings: saveBusinessSettings,
+  }), [settings, contacts, projects, notify, loadData, navigate, saveBusinessSettings]);
+  useEffect(() => {
+    const query = globalSearch.trim();
+    if (!session?.authenticated || query.length < 2) { setServerHits([]); return; }
+    let live = true;
+    const timer = window.setTimeout(() => {
+      jsonRequest(`/api/search?q=${encodeURIComponent(query)}`).then((data) => { if (live) setServerHits((data.results as ServerHit[]) || []); }).catch(() => { if (live) setServerHits([]); });
+    }, 250);
+    return () => { live = false; window.clearTimeout(timer); };
+  }, [globalSearch, session?.authenticated]);
+  function openServerHit(hit: ServerHit) {
+    setGlobalSearchOpen(false); setGlobalSearch("");
+    const routes: Record<string, [string, { kind: string; id: string; filter?: string }]> = {
+      estimate: ["estimates", { kind: "estimate", id: hit.id }], invoice: ["finance", { kind: "invoice", id: hit.id }],
+      "purchase-order": ["procurement", { kind: "filter", id: hit.id, filter: "orders" }], "material-request": ["procurement", { kind: "filter", id: hit.id, filter: "requests" }],
+      material: ["procurement", { kind: "filter", id: hit.id, filter: "materials" }], worker: ["workforce", { kind: "filter", id: hit.id, filter: "workers" }],
+      tender: ["tenders", { kind: "tender", id: hit.id }], document: ["documents", { kind: "document", id: hit.id }], "public-page": ["pages", { kind: "page", id: hit.id }],
+    };
+    const route = routes[hit.kind];
+    if (route) navigate(route[0], route[1]);
+  }
+  const followUpsDue = contacts.filter((item) => item.followUpAt && item.status !== "closed" && item.followUpAt.slice(0, 10) <= dateKey(new Date())).length + projects.filter((item) => item.followUpAt && !finishedStatuses.includes(item.status) && item.followUpAt.slice(0, 10) <= dateKey(new Date())).length;
   const exportParams = new URLSearchParams();
   if (filterCategory) exportParams.set("category", filterCategory);
   if (filterStatus) exportParams.set("status", filterStatus);
@@ -645,134 +693,133 @@ export default function Dashboard() {
   if (!session) return <main className="boot-screen"><BrandMark large /><span className="spinner" /><p>Preparing your private workspace…</p></main>;
   if (!session.authenticated) return <LoginScreen configured={session.configured} twoFactor={Boolean(session.twoFactor)} onLogin={login} toast={toast} clearToast={() => setToast(null)} />;
 
-  const tabMeta: Record<Tab, { title: string; subtitle: string }> = {
-    overview: { title: "Overview", subtitle: "A clear view of the people and resources in your network." },
-    followups: { title: "Follow-ups", subtitle: "Who to call or message next. Overdue and upcoming reminders in one list." },
-    tasks: { title: "Task planner", subtitle: "Plan site work, quotations, document collection and business actions. Tasks stay saved in your database." },
-    notes: { title: "Private notes", subtitle: "Create, organise, pin and archive your own notes. Notes are private to your signed-in admin workspace." },
-    contacts: { title: "Contact database", subtitle: "Keep every supplier, contractor, partner and client in one place." },
-    team: { title: "Team directory", subtitle: "Manage your staff, project teams and internal phone book in one secure place." },
-    projects: { title: "Projects & leads", subtitle: "Track every enquiry from first contact to completed work." },
-    rates: { title: "Rate book", subtitle: "Material, labour and equipment rates, and who quoted them." },
-    rooms: { title: "Shared databases", subtitle: "Sell or share data with clients through private links that expire." },
-    security: { title: "Security", subtitle: "2-step verification, signed-in devices, activity log and backups." },
-    reports: { title: "Reports", subtitle: "A simple summary of your network, leads and projects. Use Save PDF to print it." },
-    links: { title: "Public form links", subtitle: "Create a private-to-share link and collect structured details from anywhere." },
-    settings: { title: "Workspace settings", subtitle: "Your branding, deployment settings and database health." },
+  const tabMeta: Record<Tab, { title: string; subtitle: string; group: string }> = {
+    overview: { title: "Command centre", subtitle: "", group: "Overview" },
+    followups: { title: "Follow-ups", subtitle: "Who to call or message next. Overdue and upcoming reminders in one list.", group: "Overview" },
+    tasks: { title: "Task planner", subtitle: "Site visits, quotations, documents and business actions, saved in your database.", group: "Overview" },
+    notes: { title: "Private notes", subtitle: "Your own notes, checklists and drafts. Visible only in this signed-in workspace.", group: "Overview" },
+    contacts: { title: "Contacts", subtitle: "Every supplier, contractor, partner and client in one place.", group: "Business & CRM" },
+    team: { title: "Team directory", subtitle: "Staff, project teams and your internal phone book.", group: "Business & CRM" },
+    tenders: { title: "Tenders & bids", subtitle: "Opportunities, deadlines, EMD, bid / no-bid decisions and outcomes.", group: "Business & CRM" },
+    projects: { title: "Projects & leads", subtitle: "Every enquiry from first contact to completion and final accounts.", group: "Projects & site" },
+    project: { title: "Project workspace", subtitle: "", group: "Projects & site" },
+    site: { title: "Site diary", subtitle: "Daily site reports with work done, labour, materials, issues and approval.", group: "Projects & site" },
+    estimates: { title: "Estimates & quotations", subtitle: "BOQs with material, labour and equipment rates, markups, revisions and printable quotations.", group: "Estimation" },
+    rates: { title: "Rate book", subtitle: "Material, labour and equipment rates, and who quoted them.", group: "Estimation" },
+    procurement: { title: "Materials & purchasing", subtitle: "Stock at the store and sites, material requests, purchase orders and goods receipts.", group: "Procurement & stock" },
+    workforce: { title: "Labour & attendance", subtitle: "Workers, daily muster, wage sheets, advances and payments.", group: "Workforce" },
+    finance: { title: "Invoices, bills & expenses", subtitle: "Money in, money out and what each project has really cost.", group: "Finance" },
+    documents: { title: "Documents & approvals", subtitle: "Contracts, drawings, certificates and records with versions and renewal dates.", group: "Documents" },
+    reports: { title: "Reports", subtitle: "Network, pipeline and business figures. Use your browser’s print to save a PDF.", group: "Reports" },
+    links: { title: "Public form links", subtitle: "Share a form link and collect structured details without giving dashboard access.", group: "Public pages & forms" },
+    pages: { title: "Public pages", subtitle: "Optional showcase and enquiry pages that you publish yourself.", group: "Public pages & forms" },
+    rooms: { title: "Shared databases", subtitle: "Share selected data with clients through private links that expire.", group: "Public pages & forms" },
+    settings: { title: "Settings", subtitle: "Business profile, document numbering, lists and alerts.", group: "Administration" },
+    security: { title: "Security & backups", subtitle: "2-step verification, signed-in devices, activity log, backups and restore.", group: "Administration" },
   };
-  return <main className={`app-shell ${privacy ? "privacy-on" : ""}`} style={{ "--brand": brandColor } as CSSProperties}>
-    <aside className="sidebar"><div className="sidebar-brand"><BrandMark /><div className="brand-copy"><strong>{brandName}</strong><small>WORKSPACE</small></div></div>
-      <div className="sidebar-section-label">WORKSPACE</div>
-      <div className="sidebar-nav-tools">
-        <label className="sidebar-nav-search"><Icon name="search" /><input type="search" value={navFilter} onChange={(event) => setNavFilter(event.target.value)} placeholder="Find a panel…" aria-label="Find a navigation panel" /></label>
-        <div className="sidebar-nav-scroll-controls" aria-label="Scroll navigation">
-          <button type="button" onClick={() => scrollSidebarNav(-1)} title="Scroll navigation toward the beginning" aria-label="Scroll navigation toward the beginning">↑</button>
-          <button type="button" onClick={() => scrollSidebarNav(1)} title="Scroll navigation toward the end" aria-label="Scroll navigation toward the end">↓</button>
-        </div>
-      </div>
-      <nav className="sidebar-nav" ref={sidebarNavRef} aria-label="Main navigation" tabIndex={0}>
-        {visibleSidebarNavItems.map(([value, label]) => <button className={`nav-item ${tab === value ? "nav-item-active" : ""}`} key={value} aria-current={tab === value ? "page" : undefined} onClick={() => { setTab(value); setNavFilter(""); }}><Icon name={value === "rates" ? "database" : value === "rooms" ? "share" : value === "security" ? "lock" : value === "contacts" || value === "team" ? "contacts" : value === "links" ? "links" : value === "settings" ? "settings" : value === "followups" || value === "tasks" ? "calendar" : value === "notes" ? "note" : value === "projects" ? "briefcase" : value === "reports" ? "chart" : "overview"} /><span>{label}</span>{value === "contacts" && contacts.length > 0 ? <small>{contacts.length}</small> : value === "team" && contacts.filter((contact) => contact.isTeamMember).length > 0 ? <small>{contacts.filter((contact) => contact.isTeamMember).length}</small> : value === "links" && links.length > 0 ? <small>{links.length}</small> : value === "projects" && projects.length > 0 ? <small>{projects.length}</small> : value === "rooms" && rooms.length > 0 ? <small>{rooms.length}</small> : value === "rates" && rates.length > 0 ? <small>{rates.length}</small> : value === "followups" && counts.followUps > 0 ? <small className="nav-alert">{counts.followUps}</small> : value === "tasks" && overdueTaskCount > 0 ? <small className="nav-alert">{overdueTaskCount}</small> : value === "notes" && notes.some((note) => !note.archived && !note.deletedAt) ? <small>{notes.filter((note) => !note.archived && !note.deletedAt).length}</small> : null}</button>)}
-        {visibleSidebarNavItems.length === 0 ? <div className="sidebar-nav-empty">No panels match “{navFilter}”. <button type="button" onClick={() => setNavFilter("")}>Clear search</button></div> : null}
-      </nav>
-      <div className="sidebar-spacer" /><div className="sidebar-tip"><span className="tip-spark">✳</span><strong>Keep it organised</strong><p>Save every useful relationship. Your next project may start here.</p><button onClick={() => { setTab("contacts"); setModalContact("new"); }}>+ Add a contact</button></div>
-      <div className="sidebar-user"><span className="user-avatar">{initials(brandName)}</span><div><strong>Workspace admin</strong><small>Private access</small></div><button onClick={logout} title="Sign out" aria-label="Sign out"><Icon name="logout" /></button></div>
-    </aside>
+  const navCount = (value: Tab): { count: number; alert?: boolean } | null => {
+    if (value === "contacts" && contacts.length) return { count: contacts.length };
+    if (value === "team") { const count = contacts.filter((contact) => contact.isTeamMember).length; return count ? { count } : null; }
+    if (value === "projects" && projects.length) return { count: projects.length };
+    if (value === "followups" && counts.followUps) return { count: counts.followUps, alert: true };
+    if (value === "tasks" && overdueTaskCount) return { count: overdueTaskCount, alert: true };
+    if (value === "links" && links.length) return { count: links.length };
+    if (value === "rates" && rates.length) return { count: rates.length };
+    if (value === "rooms" && rooms.length) return { count: rooms.length };
+    return null;
+  };
+  const filterText = navFilter.trim().toLowerCase();
+  const activeGroup = navGroups.find((group) => group.items.some(([value]) => value === tab || (tab === "project" && value === "projects")))?.id;
+  const meta = tabMeta[tab];
+  const headingActions = tab === "projects" ? <><button className="ui-btn ui-btn-ghost" onClick={() => window.print()}><Icon name="print" size={16} /><span>Print</span></button><button className="ui-btn ui-btn-primary" onClick={() => setModalProject("new")}><Icon name="plus" size={16} /><span>Add project / lead</span></button></>
+    : tab === "reports" || tab === "followups" ? <button className="ui-btn ui-btn-ghost" onClick={() => window.print()}><Icon name="print" size={16} /><span>Print / save PDF</span></button>
+    : tab === "contacts" || tab === "team" ? <><button className="ui-btn ui-btn-ghost" onClick={() => window.print()}><Icon name="print" size={16} /><span>Print</span></button><button className="ui-btn ui-btn-primary" onClick={() => setModalContact("new")}><Icon name="plus" size={16} /><span>{tab === "team" ? "Add team member" : "Add contact"}</span></button></>
+    : tab === "rooms" ? <button className="ui-btn ui-btn-primary" onClick={() => setRoomCreate({ contactIds: [] })}><Icon name="plus" size={16} /><span>Share a database</span></button>
+    : tab === "links" ? <button className="ui-btn ui-btn-primary" onClick={() => setLinkModal(true)}><Icon name="plus" size={16} /><span>Create link</span></button> : null;
+  const quickAdd: [string, string, () => void][] = [
+    ["Contact", "contacts", () => { setTab("contacts"); setModalContact("new"); }],
+    ["Project or lead", "briefcase", () => { setTab("projects"); setModalProject("new"); }],
+    ["Estimate / quotation", "calculator", () => navigate("estimates", { kind: "new", id: "" })],
+    ["Daily site report", "clipboard", () => navigate("site", { kind: "new", id: "" })],
+    ["Expense", "receipt", () => navigate("finance", { kind: "new-expense", id: "" })],
+    ["Task", "calendar", () => setTab("tasks")],
+    ["Form link", "links", () => { setTab("links"); setLinkModal(true); }],
+  ];
+  const focusKey = focus ? `${focus.kind}-${focus.id}-${focus.seq}` : "none";
+  const allResultsCount = globalSearchResults.length + serverHits.length;
 
-    <div className="main-column"><header className="topbar">
+  return <WorkspaceProvider value={workspace}><ConfirmProvider>
+  <div className={`app-shell v4-shell ${privacy ? "privacy-on" : ""} ${mobileNavOpen ? "nav-open" : ""}`} style={{ "--brand": brandColor } as CSSProperties}>
+    <a className="skip-link" href="#main-content">Skip to content</a>
+    <aside className="sidebar v4-sidebar" aria-label="Workspace navigation">
+      <div className="sidebar-brand"><BrandMark /><div className="brand-copy"><strong>{settings.businessName || brandName}</strong><small>Private workspace</small></div><button type="button" className="ui-icon-btn v4-nav-close" onClick={() => setMobileNavOpen(false)} aria-label="Close menu"><Icon name="x" /></button></div>
+      <label className="v4-nav-find"><Icon name="search" size={15} /><input type="search" value={navFilter} onChange={(event) => setNavFilter(event.target.value)} placeholder="Find a section…" aria-label="Find a navigation section" /></label>
+      <nav className="v4-nav" ref={sidebarNavRef} aria-label="Main navigation">
+        {navGroups.map((group) => {
+          const items = group.items.filter(([, label]) => !filterText || label.toLowerCase().includes(filterText) || group.label.toLowerCase().includes(filterText));
+          if (!items.length) return null;
+          const collapsed = !filterText && collapsedGroups.includes(group.id) && activeGroup !== group.id;
+          return <div className="v4-nav-group" key={group.id}>
+            <button type="button" className="v4-nav-group-label" aria-expanded={!collapsed} onClick={() => setCollapsedGroups((current) => current.includes(group.id) ? current.filter((id) => id !== group.id) : [...current, group.id])}><span>{group.label}</span><Icon name={collapsed ? "chevron" : "chevronDown"} size={14} /></button>
+            {!collapsed ? <ul>{items.map(([value, label, icon]) => { const active = tab === value || (tab === "project" && value === "projects"); const badge = navCount(value); return <li key={value}>
+              <button type="button" className={`v4-nav-item ${active ? "is-active nav-item-active" : ""}`} aria-current={active ? "page" : undefined} onClick={() => { setTab(value); setFocus(null); setNavFilter(""); setMobileNavOpen(false); }}><Icon name={icon} size={17} /><span>{label}</span>{badge ? <small className={badge.alert ? "is-alert" : ""}>{badge.count}</small> : null}</button>
+            </li>; })}</ul> : null}
+          </div>;
+        })}
+        {filterText && !navGroups.some((group) => group.items.some(([, label]) => label.toLowerCase().includes(filterText) || group.label.toLowerCase().includes(filterText))) ? <div className="v4-nav-empty">No sections match “{navFilter}”. <button type="button" onClick={() => setNavFilter("")}>Clear</button></div> : null}
+      </nav>
+      <div className="v4-sidebar-foot"><span className="user-avatar" aria-hidden="true">{initials(settings.businessName || brandName)}</span><div><strong>Owner</strong><small>Signed in</small></div><button type="button" className="ui-icon-btn" onClick={logout} title="Sign out" aria-label="Sign out"><Icon name="logout" /></button></div>
+    </aside>
+    {mobileNavOpen ? <div className="v4-scrim" role="presentation" onClick={() => setMobileNavOpen(false)} /> : null}
+
+    <div className="main-column">
+      <header className="topbar v4-topbar">
+        <button type="button" className="ui-icon-btn v4-menu-btn" onClick={() => setMobileNavOpen(true)} aria-label="Open menu" aria-expanded={mobileNavOpen}><Icon name="menu" /></button>
         <form className="workspace-search" role="search" onSubmit={(event) => { event.preventDefault(); setGlobalSearchOpen(true); }}>
           <span className="workspace-search-icon"><Icon name="search" /></span>
-          <input ref={globalSearchInputRef} value={globalSearch} onChange={(event) => { setGlobalSearch(event.target.value); setGlobalSearchOpen(Boolean(event.target.value.trim())); }} onFocus={() => { if (globalSearch.trim()) setGlobalSearchOpen(true); }} onBlur={() => setGlobalSearchOpen(false)} onKeyDown={(event) => { if (event.key === "Escape") setGlobalSearchOpen(false); }} placeholder="Search contacts, projects, tasks, notes, rates, links…" aria-label="Search contacts, projects, tasks, notes, rates, shared databases and form links" autoComplete="off" />
-          {globalSearch ? <button type="button" className="workspace-search-clear" onClick={() => { setGlobalSearch(""); setGlobalSearchOpen(false); }} aria-label="Clear search">×</button> : <span className="workspace-search-hint">Search</span>}
+          <input ref={globalSearchInputRef} value={globalSearch} onChange={(event) => { setGlobalSearch(event.target.value); setGlobalSearchOpen(Boolean(event.target.value.trim())); }} onFocus={() => { if (globalSearch.trim()) setGlobalSearchOpen(true); }} onBlur={() => setGlobalSearchOpen(false)} onKeyDown={(event) => { if (event.key === "Escape") setGlobalSearchOpen(false); }} placeholder="Search everything…" aria-label="Search contacts, projects, quotations, invoices, materials, workers, documents and more" autoComplete="off" />
+          {globalSearch ? <button type="button" className="workspace-search-clear" onClick={() => { setGlobalSearch(""); setGlobalSearchOpen(false); }} aria-label="Clear search">×</button> : <kbd className="workspace-search-hint">Ctrl K</kbd>}
           {globalSearchOpen && globalSearch.trim() ? <div className="global-search-results" role="listbox" aria-label="Search results">
-            {globalSearchResults.length ? globalSearchResults.map((result) => <button type="button" className="global-search-result" key={`${result.kind}-${result.id}`} onMouseDown={(event) => event.preventDefault()} onClick={() => openGlobalSearchResult(result)}>
-              <span className={`global-result-icon global-result-${result.kind}`}>{result.kind === "contact" ? <Icon name="contacts" /> : result.kind === "project" ? <Icon name="briefcase" /> : result.kind === "task" ? <Icon name="calendar" /> : result.kind === "rate" || result.kind === "room" ? <Icon name="database" /> : result.kind === "link" ? <Icon name="links" /> : <Icon name="note" />}</span>
+            {globalSearchResults.map((result) => <button type="button" className="global-search-result" key={`${result.kind}-${result.id}`} onMouseDown={(event) => event.preventDefault()} onClick={() => openGlobalSearchResult(result)}>
+              <span className={`global-result-icon global-result-${result.kind}`}><Icon name={result.kind === "contact" ? "contacts" : result.kind === "project" ? "briefcase" : result.kind === "task" ? "calendar" : result.kind === "rate" || result.kind === "room" ? "database" : result.kind === "link" ? "links" : "note"} size={16} /></span>
               <span className="global-result-copy"><strong>{result.title}</strong><small>{result.subtitle}</small></span><span className="global-result-type">{result.kind}</span>
-            </button>) : <div className="global-search-empty"><strong>No matches found</strong><span>Try a contact, task, note, rate, shared database or form-link keyword.</span></div>}
-            <div className="global-search-footer">Search across your private workspace</div>
+            </button>)}
+            {serverHits.map((hit) => <button type="button" className="global-search-result" key={`s-${hit.kind}-${hit.id}`} onMouseDown={(event) => event.preventDefault()} onClick={() => openServerHit(hit)}>
+              <span className="global-result-icon"><Icon name={({ estimate: "calculator", invoice: "wallet", "purchase-order": "truck", "material-request": "box", material: "box", worker: "helmet", tender: "gavel", document: "folder", "public-page": "globe" } as Record<string, string>)[hit.kind] || "file"} size={16} /></span>
+              <span className="global-result-copy"><strong>{hit.title}</strong><small>{hit.subtitle}</small></span><span className="global-result-type">{hit.kind.replace("-", " ")}</span>
+            </button>)}
+            {!allResultsCount ? <div className="global-search-empty"><strong>No matches</strong><span>Try a name, number, phone, material or project.</span></div> : null}
           </div> : null}
         </form>
-        <div className="topbar-actions"><span className="connected-indicator"><i /> PRIVATE</span><button className={`secondary-button privacy-toggle ${privacy ? "dup-toggle-on" : ""}`} onClick={() => setPrivacy((value) => !value)} aria-pressed={privacy} title="Blur phone numbers and emails while someone is looking at your screen">{privacy ? "Show numbers" : "Hide numbers"}</button><button className="topbar-add" onClick={() => { setTab("contacts"); setModalContact("new"); }}><Icon name="plus" /><span>Add contact</span></button><div className="topbar-profile"><span className="topbar-profile-avatar">{initials(brandName)}</span><span className="topbar-profile-copy"><strong>Workspace admin</strong><small>Administrator</small></span><button className="topbar-profile-logout" onClick={logout} title="Sign out" aria-label="Sign out"><Icon name="logout" /></button></div><button className="mobile-logout" onClick={logout} aria-label="Sign out"><Icon name="logout" /></button></div>
+        <div className="topbar-actions">
+          <button className={`ui-btn ui-btn-ghost privacy-toggle ${privacy ? "is-on" : ""}`} onClick={() => setPrivacy((value) => !value)} aria-pressed={privacy} title="Blur phone numbers and emails while someone is looking at your screen"><Icon name={privacy ? "eye" : "eyeOff"} size={16} /><span>{privacy ? "Show numbers" : "Hide numbers"}</span></button>
+          <div className="v4-quick">
+            <button type="button" className="ui-btn ui-btn-primary" aria-haspopup="menu" aria-expanded={quickAddOpen} onClick={() => setQuickAddOpen((value) => !value)}><Icon name="plus" size={16} /><span>New</span></button>
+            {quickAddOpen ? <><div className="v4-quick-scrim" role="presentation" onClick={() => setQuickAddOpen(false)} /><ul className="v4-quick-menu" role="menu">{quickAdd.map(([label, icon, action]) => <li key={label} role="none"><button type="button" role="menuitem" onClick={() => { setQuickAddOpen(false); action(); }}><Icon name={icon} size={16} />{label}</button></li>)}</ul></> : null}
+          </div>
+          <button className="ui-icon-btn mobile-logout v4-logout" onClick={logout} aria-label="Sign out" title="Sign out"><Icon name="logout" /></button>
+        </div>
       </header>
-      <section className="content-area" data-print-title={`${brandName} · ${tabMeta[tab].title}`}>
-        <div className="page-heading"><div><div className="heading-date">CIVIL WORKS NETWORK <span>·</span> PERSONAL CRM</div><h1>{tab === "overview" ? "Welcome back, Admin!" : tabMeta[tab].title}</h1><p>{tab === "overview" ? "Here’s what’s happening with your business today." : tabMeta[tab].subtitle}</p></div>{tab === "projects" ? <div className="heading-tools"><button className="secondary-button" onClick={() => window.print()}><Icon name="download" /> Save PDF</button><button className="primary-button" onClick={() => setModalProject("new")}><Icon name="plus" /> Add project / lead</button></div> : tab === "reports" || tab === "followups" ? <button className="secondary-button" onClick={() => window.print()}><Icon name="download" /> Save PDF</button> : tab === "contacts" || tab === "team" ? <div className="heading-tools"><button className="secondary-button" onClick={() => window.print()}><Icon name="download" /> Save PDF</button><button className="primary-button" onClick={() => setModalContact("new")}><Icon name="plus" /> {tab === "team" ? "Add team member" : "Add contact"}</button></div> : tab === "rooms" ? <button className="primary-button" onClick={() => setRoomCreate({ contactIds: [] })}><Icon name="plus" /> Share a database</button> : tab === "links" ? <button className="primary-button" onClick={() => setLinkModal(true)}><Icon name="plus" /> Create link</button> : tab === "overview" ? <div className="overview-heading-actions"><span className="dashboard-date-pill"><Icon name="calendar" /><span>{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })}</span></span><button className="primary-button" onClick={() => { setTab("links"); setLinkModal(true); }}><Icon name="plus" /> Collect details</button></div> : null}</div>
-        {toast && tab !== "overview" && tab !== "contacts" && tab !== "projects" && tab !== "followups" ? <div className={`toast page-toast toast-${toast.type}`} role="status">{toast.message}<button onClick={() => setToast(null)} aria-label="Dismiss">×</button></div> : null}
-
-        {tab === "overview" ? <div className="overview-view dashboard-overview">
-          <section className="dashboard-metrics" aria-label="Workspace summary">
-            <button type="button" className="dashboard-metric metric-blue" onClick={() => setTab("tasks")}><span className="metric-icon"><Icon name="calendar" /></span><span className="metric-content"><small>Total tasks</small><strong>{tasks.length}</strong><span>{openTasks.length} pending <b>·</b> {completedTaskCount} completed</span></span></button>
-            <button type="button" className="dashboard-metric metric-green" onClick={() => setTab("contacts")}><span className="metric-icon"><Icon name="contacts" /></span><span className="metric-content"><small>Total contacts</small><strong>{contacts.length}</strong><span>{counts.new} new <b>·</b> {counts.active} active / qualified</span></span></button>
-            <button type="button" className="dashboard-metric metric-purple" onClick={() => setTab("projects")}><span className="metric-icon"><Icon name="briefcase" /></span><span className="metric-content"><small>Total projects</small><strong>{projects.length}</strong><span>{activeProjects.length} active <b>·</b> {projects.filter((project) => project.status === "completed").length} completed</span></span></button>
-            <button type="button" className="dashboard-metric metric-orange" onClick={() => setTab("notes")}><span className="metric-icon"><Icon name="note" /></span><span className="metric-content"><small>Private notes</small><strong>{activeNotes.length}</strong><span>{activeNotes.filter((note) => note.pinned).length} pinned <b>·</b> {notes.filter((note) => note.archived && !note.deletedAt).length} archived</span></span></button>
-          </section>
-
-          <div className="dashboard-main-grid">
-            <section className="panel dashboard-panel upcoming-panel">
-              <div className="dashboard-panel-heading"><div><span className="dashboard-section-icon section-blue"><Icon name="calendar" /></span><span><h2>Upcoming tasks</h2><p>Work that needs your attention next.</p></span></div><button type="button" className="dashboard-view-link" onClick={() => setTab("tasks")}>View all <Icon name="arrow" /></button></div>
-              {dashboardTasks.length ? <div className="dashboard-table-wrap"><table className="dashboard-task-table"><thead><tr><th>Task</th><th>Priority</th><th>Due date</th><th>Status</th></tr></thead><tbody>{dashboardTasks.map((task) => {
-                const relatedLabel = task.relatedKind === "contact" ? contacts.find((contact) => contact._id === task.relatedId)?.name : task.relatedKind === "project" ? projects.find((project) => project._id === task.relatedId)?.title : "Workspace task";
-                const overdue = Boolean(task.dueAt && new Date(task.dueAt).getTime() < new Date(new Date().toDateString()).getTime());
-                return <tr key={task._id}>
-                  <td><button type="button" className="dashboard-task-main" onClick={() => setTab("tasks")}><span className="dashboard-task-type-icon"><Icon name={task.priority === "urgent" || task.priority === "high" ? "calendar" : "check"} /></span><span><strong>{task.title}</strong><small>{task.description || relatedLabel || "No extra details"}</small></span></button></td>
-                  <td><span className={`dashboard-priority priority-${task.priority}`}>{taskPriorityLabels[task.priority]}</span></td>
-                  <td><span className={`dashboard-due-date ${overdue ? "is-overdue" : ""}`}>{shortDate(task.dueAt)}</span>{overdue ? <small className="dashboard-overdue-caption">Overdue</small> : null}</td>
-                  <td><span className={`dashboard-task-status status-${task.status}`}>{taskStatusLabels[task.status]}</span></td>
-                </tr>;
-              })}</tbody></table></div> : <div className="dashboard-empty"><span className="dashboard-empty-icon"><Icon name="calendar" /></span><strong>No upcoming tasks</strong><p>Create a task for a site visit, quotation, document or client follow-up.</p><button className="secondary-button" type="button" onClick={() => setTab("tasks")}>Open Task Planner <Icon name="arrow" /></button></div>}
-              <div className="dashboard-panel-footer"><span><i className={overdueTaskCount ? "dashboard-dot dot-warning" : "dashboard-dot"} />{overdueTaskCount ? `${overdueTaskCount} overdue task${overdueTaskCount === 1 ? "" : "s"} need attention` : `${openTasks.length} open task${openTasks.length === 1 ? "" : "s"} in your work queue`}</span><button type="button" onClick={() => setTab("tasks")}>Manage tasks →</button></div>
-            </section>
-
-            <div className="dashboard-side-stack">
-              <section className="panel dashboard-panel quick-actions-panel">
-                <div className="dashboard-panel-heading"><div><span className="dashboard-section-icon section-blue"><Icon name="overview" /></span><span><h2>Quick actions</h2><p>Get common work done faster.</p></span></div></div>
-                <div className="dashboard-quick-actions">
-                  <button type="button" className="quick-action action-blue" onClick={() => setTab("tasks")}><span><Icon name="plus" /></span><strong>Add new task</strong></button>
-                  <button type="button" className="quick-action action-purple" onClick={() => setTab("notes")}><span><Icon name="note" /></span><strong>New private note</strong></button>
-                  <button type="button" className="quick-action action-green" onClick={() => { setTab("contacts"); setModalContact("new"); }}><span><Icon name="contacts" /></span><strong>Add contact</strong></button>
-                  <button type="button" className="quick-action action-orange" onClick={() => { setTab("projects"); setModalProject("new"); }}><span><Icon name="briefcase" /></span><strong>Add project</strong></button>
-                </div>
-              </section>
-
-              <section className="panel dashboard-panel dashboard-note-preview">
-                <div className="dashboard-panel-heading"><div><span className="dashboard-section-icon section-purple"><Icon name="note" /></span><span><h2>Private notes</h2><p>Your personal reminders and ideas.</p></span></div><button type="button" className="dashboard-view-link" onClick={() => setTab("notes")}>View all <Icon name="arrow" /></button></div>
-                {activeNotes.length ? <div className="dashboard-note-list">{activeNotes.slice(0, 4).map((note) => <button type="button" className="dashboard-note-row" key={note._id} onClick={() => setTab("notes")}><span className="dashboard-note-icon"><Icon name="note" /></span><span className="dashboard-note-copy"><strong>{note.title}</strong><small>{note.content.trim().replace(/\s+/g, " ") || "No note text yet"}</small></span><span className="dashboard-note-date">{shortDate(note.updatedAt)}{note.pinned ? <b title="Pinned">◆</b> : null}</span></button>)}</div> : <div className="dashboard-empty dashboard-empty-compact"><strong>Your private notebook is ready</strong><p>Keep internal reminders, meeting notes and checklists saved in MongoDB.</p><button className="secondary-button" type="button" onClick={() => setTab("notes")}>Create a note <Icon name="arrow" /></button></div>}
-              </section>
-
-              <section className="dashboard-promo-card"><div className="dashboard-promo-art" aria-hidden="true"><span className="promo-building promo-building-one"/><span className="promo-building promo-building-two"/><span className="promo-window promo-window-one"/><span className="promo-window promo-window-two"/><span className="promo-window promo-window-three"/><span className="promo-window promo-window-four"/></div><div className="dashboard-promo-copy"><span>YOUR WORKSPACE</span><h2>Build better.<br />Manage smarter.</h2><p>Contacts, tasks, projects and private notes — organised in one place.</p><button type="button" onClick={() => setTab("reports")}>Explore reports <Icon name="arrow" /></button></div></section>
-            </div>
-          </div>
-
-          <div className="overview-grid dashboard-existing-grid">
-            <section className="panel category-panel"><div className="panel-heading"><div><h2>Network categories</h2><p>See where your contacts are coming from.</p></div><button className="text-action" onClick={() => setTab("contacts")}>View database <span>→</span></button></div><div className="category-list">{categoryCounts.map((category) => { const total = Math.max(counts.total, 1); const percent = counts.total ? Math.round(category.count / total * 100) : 0; return <button className="category-row" key={category.id} onClick={() => { setFilterCategory(category.id); setTab("contacts"); }}><span className={`category-monogram mono-${category.id}`}>{category.short.split(/[ /]/).map((x) => x[0]).join("").slice(0, 2).toUpperCase()}</span><span className="category-info"><strong>{category.label}</strong><small>{category.description}</small><span className="mini-progress"><i style={{ width: `${percent}%` }} /></span></span><span className="category-count">{category.count}</span><span className="category-chevron">›</span></button>; })}</div></section>
-            <section className="panel recent-panel"><div className="panel-heading"><div><h2>Recently updated</h2><p>Your latest network activity.</p></div><button className="icon-button subtle" onClick={() => loadData()} aria-label="Refresh records">↻</button></div>{contacts.length ? <div className="recent-list">{[...contacts].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()).slice(0, 6).map((contact) => <button className="recent-row" key={contact._id} onClick={() => { setTab("contacts"); setModalContact(contact); }}><span className={`contact-avatar avatar-${categories.findIndex((item) => item.id === contact.category) % 5}`}>{initials(contact.name)}</span><span className="recent-person"><strong>{contact.name}</strong><small>{contact.organization || categoryLabel(contact.category)}</small></span><span className="recent-meta"><StatusPill status={contact.status} /><small>{relativeDate(contact.updatedAt)}</small></span></button>)}<button className="recent-view-all" onClick={() => setTab("contacts")}>View all contacts <Icon name="arrow" /></button></div> : <div className="empty-state compact-empty"><span className="empty-icon"><Icon name="contacts" /></span><h3>Your network starts here</h3><p>Add your first contact manually or share a public form to collect details.</p><button className="secondary-button" onClick={() => { setTab("contacts"); setModalContact("new"); }}>Add first contact</button></div>}
-              <div className="followup-card"><span className="followup-icon"><Icon name="calendar" /></span><div><strong>{counts.followUps ? `${counts.followUps} follow-up${counts.followUps > 1 ? "s" : ""} due or overdue` : "Stay ahead of follow-ups"}</strong><p>{counts.followUps ? "Open the Follow-ups list to call, message or reschedule." : "Set a follow-up date inside any contact or project."}</p></div><button onClick={() => setTab("followups")}>Review <span>→</span></button></div>
-            </section>
-          </div>
-
-          <div className="dashboard-lower-grid">
-            <section className="panel dashboard-panel dashboard-activity-panel"><div className="dashboard-panel-heading"><div><span className="dashboard-section-icon section-blue"><Icon name="chart" /></span><span><h2>Recent activity</h2><p>Records changed recently.</p></span></div><button type="button" className="dashboard-view-link" onClick={() => setTab("security")}>View log <Icon name="arrow" /></button></div>
-              <div className="dashboard-activity-list">
-                {[
-                  ...contacts.map((item) => ({ id: `contact-${item._id}`, kind: "contact" as const, title: `Contact updated · ${item.name}`, at: item.updatedAt })),
-                  ...projects.map((item) => ({ id: `project-${item._id}`, kind: "project" as const, title: `Project updated · ${item.title}`, at: item.updatedAt })),
-                  ...tasks.map((item) => ({ id: `task-${item._id}`, kind: "task" as const, title: `Task updated · ${item.title}`, at: item.updatedAt })),
-                  ...notes.map((item) => ({ id: `note-${item._id}`, kind: "note" as const, title: `Private note updated`, at: item.updatedAt })),
-                ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()).slice(0, 5).map((item) => <div className="dashboard-activity-row" key={item.id}><span className={`activity-kind-icon activity-kind-${item.kind}`}><Icon name={item.kind === "contact" ? "contacts" : item.kind === "project" ? "briefcase" : item.kind === "task" ? "calendar" : "note"} /></span><span className="dashboard-activity-title">{item.title}</span><small>{relativeDate(item.at)}</small></div>)}
-                {!contacts.length && !projects.length && !tasks.length && !notes.length ? <div className="dashboard-empty dashboard-empty-compact"><strong>No activity yet</strong><p>Add a contact, task, project or private note to get started.</p></div> : null}
-              </div>
-            </section>
-            <section className="panel dashboard-panel dashboard-quick-stats"><div className="dashboard-panel-heading"><div><span className="dashboard-section-icon section-blue"><Icon name="chart" /></span><span><h2>Quick stats</h2><p>A quick health check of your workspace.</p></span></div></div><div className="quick-stats-list">
-              <div className="quick-stat-line quick-stat-green"><span className="quick-stat-symbol"><Icon name="check" /></span><span>Completed tasks</span><strong>{completedTaskCount}</strong></div>
-              <div className="quick-stat-line quick-stat-blue"><span className="quick-stat-symbol"><Icon name="calendar" /></span><span>Open tasks</span><strong>{openTasks.length}</strong></div>
-              <div className="quick-stat-line quick-stat-purple"><span className="quick-stat-symbol"><Icon name="briefcase" /></span><span>Active projects</span><strong>{activeProjects.length}</strong></div>
-              <div className="quick-stat-line quick-stat-orange"><span className="quick-stat-symbol"><Icon name="contacts" /></span><span>Active contacts</span><strong>{counts.active}</strong></div>
-            </div></section>
-            <section className="panel dashboard-panel dashboard-work-summary"><div className="dashboard-panel-heading"><div><span className="dashboard-section-icon section-orange"><Icon name="briefcase" /></span><span><h2>Projects & work queue</h2><p>Keep the next steps visible.</p></span></div></div>
-              <div className="dashboard-project-summary"><div><span>Open leads</span><strong>{projects.filter((project) => ["lead", "quoted", "negotiation"].includes(project.status)).length}</strong></div><div><span>Ongoing projects</span><strong>{projects.filter((project) => project.status === "ongoing").length}</strong></div><button type="button" className="secondary-button" onClick={() => setTab("projects")}>Open projects <Icon name="arrow" /></button></div>
-              <div className="task-overview-strip"><div className="task-overview-icon">✓</div><div className="task-overview-copy"><span>WORK QUEUE</span><strong>{openTasks.length} open tasks to manage</strong><p>{overdueTaskCount ? `${overdueTaskCount} overdue · prioritise these first.` : "Track site visits, quotations, paperwork and client actions."}</p></div><button className="secondary-button" onClick={() => setTab("tasks")}>Open planner <span>→</span></button></div>
-              <div className="bottom-note"><span>✦</span><p><strong>Your data, your control.</strong> Contacts are stored in your MongoDB database. Public form links collect details but never expose your contact list.</p><button onClick={() => setTab("settings")}>Workspace details <span>→</span></button></div>
-            </section>
-          </div>
+      <main id="main-content" className="content-area v4-content" data-print-title={`${settings.businessName || brandName} · ${meta.title}`} tabIndex={-1}>
+        {tab !== "overview" && tab !== "project" ? <div className="v4-heading">
+          <div><p className="ui-kicker">{meta.group}</p><h1>{meta.title}</h1>{meta.subtitle ? <p>{meta.subtitle}</p> : null}</div>
+          {headingActions ? <div className="v4-heading-actions">{headingActions}</div> : null}
         </div> : null}
+
+        {tab === "overview" ? <>
+          <OverviewPanel tasks={tasks} followUpsDue={followUpsDue} onNewTask={() => setTab("tasks")} onNewProject={() => { setTab("projects"); setModalProject("new"); }} />
+          <div className="ov-grid ov-grid-even ov-network">
+            <section className="ui-section"><header className="ui-section-head"><div><h2>Your network</h2><p>Contacts by category. Select one to see those contacts.</p></div><button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={() => setTab("contacts")}>All contacts</button></header>
+              {contacts.length ? <ul className="ov-categories">{categoryCounts.filter((category) => category.count > 0).sort((a, b) => b.count - a.count).map((category) => <li key={category.id}><button type="button" onClick={() => { setFilterCategory(category.id); setTab("contacts"); }}><span>{category.label}</span><span className="ui-progress"><i className="ui-tone-accent" style={{ width: `${Math.max(4, Math.round(category.count / Math.max(1, counts.total) * 100))}%` }} /></span><strong>{category.count}</strong></button></li>)}</ul> : <div className="ui-empty"><strong>No contacts yet</strong><p>Add a contact or share a public form to collect details.</p><div className="ui-empty-action"><button type="button" className="ui-btn ui-btn-primary ui-btn-sm" onClick={() => { setTab("contacts"); setModalContact("new"); }}>Add contact</button></div></div>}
+            </section>
+            <section className="ui-section"><header className="ui-section-head"><div><h2>Recently updated</h2><p>Contacts and private notes you changed last.</p></div><button type="button" className="ui-icon-btn" onClick={() => loadData()} aria-label="Refresh records"><Icon name="refresh" size={16} /></button></header>
+              {contacts.length || activeNotes.length ? <ul className="ov-list">
+                {[...contacts].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()).slice(0, 5).map((contact) => <li key={contact._id}><button type="button" onClick={() => { setTab("contacts"); setModalContact(contact); }}><span className="ov-avatar" aria-hidden="true">{initials(contact.name)}</span><span className="ov-list-main">{contact.name}<small>{contact.organization || categoryLabel(contact.category)}</small></span><span className="ov-list-meta">{relativeDate(contact.updatedAt)}</span></button></li>)}
+                {activeNotes.slice(0, 3).map((note) => <li key={note._id}><button type="button" onClick={() => { setFocusedNoteId(note._id); setTab("notes"); }}><span className="ov-avatar ov-avatar-note" aria-hidden="true"><Icon name="note" size={14} /></span><span className="ov-list-main">{note.title}<small>Private note{note.pinned ? " · pinned" : ""}</small></span><span className="ov-list-meta">{relativeDate(note.updatedAt)}</span></button></li>)}
+              </ul> : <div className="ui-empty"><strong>Nothing yet</strong><p>Records you add or edit will appear here.</p></div>}
+            </section>
+          </div>
+        </> : null}
 
         {(tab === "contacts" || tab === "team") ? <section className="panel database-panel"><div className="contact-directory-switch"><button type="button" className={tab === "contacts" ? "active" : ""} onClick={() => setTab("contacts")}>All contacts <span>{contacts.length}</span></button><button type="button" className={tab === "team" ? "active" : ""} onClick={() => setTab("team")}>Team directory <span>{contacts.filter((contact) => contact.isTeamMember).length}</span></button></div><div className="database-toolbar"><form className="search-form" onSubmit={applyFilters}><span className="search-icon"><Icon name="search" /></span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={tab === "team" ? "Search team names, roles, phone numbers…" : "Search name, phone, company, city…"} aria-label={tab === "team" ? "Search team directory" : "Search contacts"} /><button type="submit">Search</button></form><div className="database-actions"><label className="filter-control"><Icon name="filter" /><select value={filterCategory} onChange={(event) => setFilterCategory(event.target.value)} aria-label="Filter by category"><option value="">All categories</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label><select className="filter-control status-filter" value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)} aria-label="Filter by status"><option value="">All statuses</option>{contactStatuses.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select><button className={`secondary-button dup-toggle ${onlyDuplicates ? "dup-toggle-on" : ""}`} type="button" onClick={() => setOnlyDuplicates((v) => !v)} disabled={!duplicateIds.size && !onlyDuplicates} title="Show contacts that share a phone number or email">Duplicates ({duplicateIds.size})</button>{onlyDuplicates && duplicateIds.size ? <button className="primary-button" type="button" onClick={() => setMergeOpen(true)}>Merge duplicates…</button> : null}<input ref={importInputRef} className="hidden-file-input" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={importContacts} aria-label="Choose a CSV or Excel file to import" /><button className="secondary-button import-trigger" type="button" onClick={() => importInputRef.current?.click()} disabled={importing} title="Import CSV or Excel contacts; duplicates by phone or email are skipped"><Icon name="upload" /> {importing ? "Importing…" : "Import"}</button><a className="secondary-button import-trigger" href="/api/export?scope=template&format=xlsx" title="A blank Excel file with the right column names">Template</a><div className="export-menu"><button className="secondary-button export-trigger"><Icon name="download" /> Export <span>⌄</span></button><div className="export-options"><a href={`/api/export?format=xlsx${exportFilterQuery}`}><span className="export-file-icon">X</span><span><strong>Excel workbook</strong><small>.xlsx · {hasActiveExportFilters ? "Current filters" : "Full database"}</small></span></a><a href={`/api/export?format=csv${exportFilterQuery}`}><span className="export-file-icon csv-file">≡</span><span><strong>CSV file</strong><small>.csv · {hasActiveExportFilters ? "Current filters" : "Full database"}</small></span></a><button onClick={() => window.print()}><span className="export-file-icon pdf-file">P</span><span><strong>Save as PDF</strong><small>Print / Save PDF</small></span></button></div></div><button className="primary-button compact-add" onClick={() => setModalContact("new")}><Icon name="plus" /> Add</button></div></div>
           <div className="table-summary"><span><strong>{filteredContacts.length}</strong> {tab === "team" ? "team member" : "contact"}{filteredContacts.length === 1 ? "" : "s"}{(filterCategory || filterStatus || appliedSearch || onlyDuplicates) ? " match your filters" : " in your current view"}</span><div><span className="summary-dot" /> MongoDB synced on refresh</div></div>
@@ -788,16 +835,25 @@ export default function Dashboard() {
           <div className="database-footer"><span>Personal database · Visible only after admin sign-in</span><span>Up to 5,000 records are loaded at a time</span></div>
         </section> : null}
 
-        {toast && (tab === "projects" || tab === "followups") ? <div className={`toast page-toast toast-${toast.type}`} role="status">{toast.message}<button onClick={() => setToast(null)} aria-label="Dismiss">×</button></div> : null}
+
         {tab === "followups" ? <FollowUpsPanel contacts={contacts} projects={projects} onOpen={openFollowUp} onUpdate={updateFollowUp} onWhatsApp={openWhatsApp} /> : null}
         {tab === "tasks" ? <TasksPanel tasks={tasks} contacts={contacts} projects={projects} onChanged={() => loadData(false)} notify={notify} focusTaskId={focusedTaskId} onFocusHandled={clearFocusedTask} /> : null}
         {tab === "notes" ? <PrivateNotesPanel notes={notes} projects={projects} tasks={tasks} onChanged={() => loadData(false)} notify={notify} focusNoteId={focusedNoteId} onFocusHandled={clearFocusedNote} /> : null}
-        {tab === "projects" ? <ProjectsPanel projects={projects} contacts={contacts} onEdit={(project) => setModalProject(project)} onDelete={deleteProject} onStatus={changeProjectStatus} /> : null}
+        {tab === "projects" ? <ProjectsPanel projects={projects} contacts={contacts} onEdit={(project) => setModalProject(project)} onDelete={deleteProject} onStatus={changeProjectStatus} onOpen={(project) => navigate("project", { kind: "project", id: project._id })} /> : null}
+        {tab === "project" && workspaceProjectId ? <ProjectWorkspace key={`${workspaceProjectId}-${workspaceVersion}`} projectId={workspaceProjectId} tasks={tasks} onBack={() => setTab("projects")} onEdit={(project) => setModalProject(project)} /> : null}
+        {tab === "site" ? <SiteReportsPanel key={focusKey} initialFilter={focus?.filter || ""} openNew={focus?.kind === "new"} onOpenHandled={clearFocus} /> : null}
+        {tab === "estimates" ? <EstimatesPanel key={focusKey} initialFilter={focus?.filter || ""} openNew={focus?.kind === "new"} openId={focus?.kind === "estimate" ? focus.id : ""} onOpenHandled={clearFocus} /> : null}
+        {tab === "procurement" ? <ProcurementPanel key={focusKey} initialSection={focus?.filter || ""} /> : null}
+        {tab === "workforce" ? <WorkforcePanel key={focusKey} initialSection={focus?.filter || (focus?.kind === "worker" ? "workers" : "")} /> : null}
+        {tab === "finance" ? <FinancePanel key={focusKey} initialFilter={focus?.filter || ""} openNewExpense={focus?.kind === "new-expense"} onOpenHandled={clearFocus} /> : null}
+        {tab === "documents" ? <DocumentsPanel key={focusKey} initialFilter={focus?.filter || ""} openId={focus?.kind === "document" ? focus.id : ""} onOpenHandled={clearFocus} /> : null}
+        {tab === "tenders" ? <TendersPanel key={focusKey} openId={focus?.kind === "tender" ? focus.id : ""} onOpenHandled={clearFocus} /> : null}
+        {tab === "pages" ? <PublicPagesPanel /> : null}
         {tab === "rates" ? <RatesPanel rates={rates} contacts={contacts} onChanged={() => loadData(false)} notify={notify} /> : null}
         {tab === "rooms" ? <RoomsPanel rooms={rooms} contacts={contacts} rates={rates} creating={roomCreate} onCloseCreate={() => setRoomCreate(null)} onChanged={() => loadData(false)} notify={notify} ownerName={brandName} /> : null}
         {mergeOpen ? <MergeModal contacts={contacts} onClose={() => setMergeOpen(false)} onDone={() => loadData(false)} notify={notify} /> : null}
         {tab === "security" ? <SecurityPanel twoFactor={Boolean(session.twoFactor)} autoLockMinutes={autoLock} onAutoLock={(minutes) => { void saveAutoLockPreference(minutes); }} notify={notify} /> : null}
-        {tab === "reports" ? <ReportsPanel contacts={contacts} projects={projects} links={links} rooms={rooms} duplicateCount={duplicateIds.size} /> : null}
+        {tab === "reports" ? <><ReportsPanel contacts={contacts} projects={projects} links={links} rooms={rooms} duplicateCount={duplicateIds.size} /><BusinessReports /></> : null}
 
         {tab === "links" ? <div className="links-view"><div className="link-howto"><div className="howto-badge"><Icon name="links" /></div><div><h2>Collect details without giving dashboard access</h2><p>Make a separate form for each kind of contact. Share the link on WhatsApp, email or anywhere else. People can submit without a password; only you can view the saved records.</p></div><div className="howto-steps"><span><b>1</b> Create link</span><span><b>2</b> Share it</span><span><b>3</b> Review entries</span></div></div>
           <div className="links-section-heading"><div><h2>Your share links</h2><p>Pause a link any time. Paused or expired links stop accepting submissions.</p></div><span className="neutral-count">{links.length} total</span></div>
@@ -805,15 +861,15 @@ export default function Dashboard() {
           <div className="links-security-note"><Icon name="lock" /><div><strong>Keep your dashboard private.</strong><p>The share link opens only its own form. It cannot show existing contacts, other forms or admin pages. If a link is forwarded too widely, pause or delete it here.</p></div></div>
         </div> : null}
 
-        {tab === "settings" ? <div className="settings-view"><section className="settings-hero"><div className="settings-brand-preview" style={{ "--brand": brandColor } as CSSProperties}><BrandMark large /><span><strong>{brandName}</strong><small>{brandTagline}</small></span></div><div><span className="eyebrow">CURRENT BRAND IDENTITY</span><h2>One place. Your identity.</h2><p>Brand name, colour, logo, favicon and the canonical URL are controlled by Vercel environment variables. Update them and redeploy to apply the changes.</p></div></section><div className="settings-grid"><section className="panel settings-panel"><div className="settings-panel-heading"><span className="settings-panel-icon"><Icon name="settings" /></span><div><h3>Brand & domain</h3><p>Customise the experience without editing application code.</p></div></div><div className="env-list"><div><span>App name</span><code>NEXT_PUBLIC_APP_NAME</code><strong>{brandName}</strong></div><div><span>Tagline</span><code>NEXT_PUBLIC_APP_TAGLINE</code><strong>{brandTagline}</strong></div><div><span>Canonical URL</span><code>NEXT_PUBLIC_SITE_URL</code><strong>{process.env.NEXT_PUBLIC_SITE_URL || "Auto-detected from current domain"}</strong></div><div><span>Brand colour</span><code>NEXT_PUBLIC_BRAND_COLOR</code><strong><i className="color-swatch" style={{ background: brandColor }} /> {brandColor}</strong></div><div><span>Logo URL</span><code>NEXT_PUBLIC_BRAND_LOGO_URL</code><strong>{brandLogo || "Built-in brand mark"}</strong></div><div><span>Favicon URL</span><code>NEXT_PUBLIC_FAVICON_URL</code><strong>{process.env.NEXT_PUBLIC_FAVICON_URL || "Generated from app name and colour"}</strong></div></div><div className="settings-note"><strong>Where to change these</strong><p>Vercel → your project → Settings → Environment Variables. Save the changes and redeploy. Add your actual custom domain separately in Vercel → Settings → Domains, then set NEXT_PUBLIC_SITE_URL to that URL so generated share links use it.</p><a href="https://vercel.com/docs/projects/environment-variables" target="_blank" rel="noreferrer">Environment variable guide <Icon name="external" /></a></div></section>
-          <section className="panel settings-panel"><div className="settings-panel-heading"><span className="settings-panel-icon database-icon"><Icon name="database" /></span><div><h3>Database & access</h3><p>Confirm the storage connection used by this workspace.</p></div></div><div className="health-card"><span className={`health-indicator ${health?.database === "connected" ? "health-ok" : "health-bad"}`} /><div><strong>{health?.database === "connected" ? "MongoDB connected" : health?.database === "error" ? "Database needs attention" : "Checking database…"}</strong><p>{health?.database === "connected" ? `Database: ${health.databaseName || "Configured"}` : health?.message || "The connection status will appear here."}</p></div><button className="secondary-button" onClick={async () => { setHealth(null); try { const result = await jsonRequest("/api/health"); setHealth(result); notify("Database connection is healthy."); } catch (error) { setHealth({ database: "error", message: error instanceof Error ? error.message : "Connection failed" }); notify("Database check failed.", "error"); } }}>Test connection</button></div><div className="settings-note"><strong>Required server-side variables</strong><div className="required-env"><code>MONGODB_URI</code><code>ADMIN_USERNAME</code><code>ADMIN_PASSWORD</code><code>ADMIN_SESSION_SECRET</code></div><p>Secrets are read on the server only. They are not shown in this panel and must not use the NEXT_PUBLIC_ prefix.</p></div><div className="settings-note settings-note-bottom"><strong>Backups matter</strong><p>Contact records live in MongoDB Atlas. Schedule backups in Atlas and periodically export an XLSX or CSV copy for your own records.</p><button className="text-action" onClick={() => { setTab("contacts"); }}>Export database <span>→</span></button></div></section></div>
-          <section className="panel security-summary"><div className="security-shield"><Icon name="lock" /></div><div><h3>Private admin · Public forms by token</h3><p>Admin routes require a signed, HTTP-only session cookie. Login attempts are throttled using MongoDB. Intake links use 192-bit random tokens and can be paused or revoked in this panel.</p></div><span className="security-status"><i /> ACCESS CONTROL ACTIVE</span></section>
-        </div> : null}
-      </section>
-      <footer className="app-footer"><span>© {new Date().getFullYear()} {brandName}</span><span>Personal civil network management</span><span>All records stored in your configured MongoDB</span></footer>
+
+        {tab === "settings" ? <SettingsPanel health={health} onTestConnection={async () => { setHealth(null); try { const result = await jsonRequest("/api/health"); setHealth(result); notify("Database connection is healthy."); } catch (error) { setHealth({ database: "error", message: error instanceof Error ? error.message : "Connection failed" }); notify("Database check failed.", "error"); } }} /> : null}
+      </main>
+      <footer className="app-footer v4-footer"><span>© {new Date().getFullYear()} {settings.businessName || brandName}</span><span>Private workspace · records stored in your MongoDB database</span></footer>
     </div>
+    {toast ? <div className={`v4-toast v4-toast-${toast.type}`} role={toast.type === "error" ? "alert" : "status"} aria-live={toast.type === "error" ? "assertive" : "polite"}><Icon name={toast.type === "error" ? "alert" : toast.type === "info" ? "clock" : "check"} size={16} /><span>{toast.message}</span><button type="button" onClick={() => setToast(null)} aria-label="Dismiss message"><Icon name="x" size={14} /></button></div> : null}
     {modalContact ? <ContactModal key={modalContact === "new" ? "new-contact" : modalContact._id} initial={modalContact === "new" ? null : modalContact} onClose={() => setModalContact(null)} onSave={saveContact} saving={saving} defaultTeam={tab === "team"} /> : null}
     {modalProject ? <ProjectModal key={modalProject === "new" ? "new-project" : modalProject._id} initial={modalProject === "new" ? null : modalProject} contacts={contacts} onClose={() => setModalProject(null)} onSave={saveProject} saving={savingProject} /> : null}
     {linkModal ? <LinkModal onClose={() => setLinkModal(false)} onCreate={createLink} busy={busy} /> : null}
-  </main>;
+  </div>
+  </ConfirmProvider></WorkspaceProvider>;
 }

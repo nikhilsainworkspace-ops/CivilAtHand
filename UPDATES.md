@@ -1,3 +1,24 @@
+# Civil At Hand: version 4 — construction management and redesign (October 2026)
+
+Additive release. Existing contacts, projects, tasks, notes, rates, links, shared databases, imports, exports, backups and security behaviour are preserved; no field is renamed or removed and no migration is needed. See the "Version 4" section of README.md for the feature list.
+
+## Added
+- Owner command centre, project workspace with milestones, daily site reports with approval, estimates/BOQ/quotations with revisions and printing, materials/stock ledger/material requests/purchase orders with goods receipts, workers/attendance/wage sheets, client invoices/supplier bills/payments/expenses/project costs, document register with versions and approvals, tenders, owner-built public pages, business settings, business reports, cross-module search.
+- 18 new collections, created automatically. Backups (format 5) and merge restore cover them.
+- `tests/erp.test.ts` (calculations and validation) and `tests/integration/erp-api.test.ts` (route-level checks with an in-memory database: sign-in required on every new route, locking, payments, receipts, stock, publication).
+
+## Changed
+- Unified design system (`app/design-system.css`, `components/ui.tsx`) applied across all screens; grouped navigation with a mobile menu; minimal sign-in page (no marketing copy; username/password fields now allow password managers).
+- Project stages gain Estimation, Awarded, Planning, Defects liability period and Closed; labels of Lead/Ongoing read "Enquiry / lead" and "Active (ongoing)". Saved values are unchanged.
+- Project create, update, stage change and delete are now written to the activity log.
+- Default brand colour is navy `#1f3a5c` (an explicit `NEXT_PUBLIC_BRAND_COLOR` still wins). `robots.txt` allows `/p/` only; each public page decides indexing itself.
+- The sidebar scroll arrows were replaced by collapsible navigation groups and a mobile drawer; "Find a panel" search remains.
+
+## Not included in this release
+- Staff accounts and role-based permissions, custom form builder for public forms, supplier RFQ comparison beyond the rate book, subcontract running bills, quality/safety checklists as a separate module, email/SMS notifications, dark mode.
+
+---
+
 # Civil At Hand: dashboard visual refresh (October 2026)
 
 The visual update is additive. It retains the existing login, contacts, follow-ups, tasks, private notes, projects, rate book, shared databases, reports, public form links, security and settings functionality.
