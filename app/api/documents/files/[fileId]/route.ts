@@ -15,7 +15,7 @@ export async function GET(request: Request, context: Context) {
   if (!mongoose.isValidObjectId(fileId)) return new Response("Not found", { status: 404, headers });
   try {
     await dbConnect();
-    const file = await DocumentFile.findById(fileId).select("+data").lean() as { filename: string; mimeType: string; size: number; data: Buffer } | null;
+    const file = await DocumentFile.findById(fileId).select("+data").lean() as unknown as { filename: string; mimeType: string; size: number; data: Buffer } | null;
     if (!file) return new Response("Not found", { status: 404, headers });
     const type = documentFileTypes.find((item) => item.mime === file.mimeType);
     const inline = new URL(request.url).searchParams.get("inline") === "1" && Boolean(type?.inline);

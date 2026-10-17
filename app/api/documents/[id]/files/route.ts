@@ -34,7 +34,7 @@ export const POST = adminHandler("Document upload error", async (request: Reques
   const type = detectFileType(filename, bytes);
   if (!type) throw new InputError("This file type is not accepted, or its content does not match its name. Use PDF, JPG, PNG, WebP, DOCX, XLSX, PPTX, DWG, DXF, CSV or TXT.");
   const revisionLabel = cleanString(form.get("revisionLabel"), 20);
-  const bumped = await ProjectDocument.findOneAndUpdate({ _id: id }, { $inc: { currentVersion: 1 } }, { new: true }).lean() as { currentVersion: number } | null;
+  const bumped = await ProjectDocument.findOneAndUpdate({ _id: id }, { $inc: { currentVersion: 1 } }, { new: true }).lean() as unknown as { currentVersion: number } | null;
   if (!bumped) throw new InputError("Document not found.");
   const version = bumped.currentVersion;
   const created = await DocumentFile.create({

@@ -19,7 +19,7 @@ export async function GET(request: Request, context: Context) {
     const page = await loadLivePage(slug, key);
     if (!page || !pageImageIds(page).includes(id)) return notFound();
     await dbConnect();
-    const image = await PageImage.findById(id).select("+data").lean() as { mimeType: string; size: number; data: Buffer } | null;
+    const image = await PageImage.findById(id).select("+data").lean() as unknown as { mimeType: string; size: number; data: Buffer } | null;
     if (!image) return notFound();
     return new Response(new Uint8Array(image.data), {
       headers: { "Content-Type": image.mimeType, "Content-Length": String(image.size), "Cache-Control": page.visibility === "public" ? "public, max-age=300" : "private, no-store", "X-Content-Type-Options": "nosniff" },

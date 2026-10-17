@@ -1,11 +1,11 @@
-import mongoose, { Schema } from "mongoose";
+import mongoose, { Schema, type SchemaDefinition } from "mongoose";
 import type { FieldSpec } from "@/lib/entity-spec";
 
 /** Builds a Mongoose schema definition from shared field specs so storage and validation never drift apart. */
-export function schemaFields(specs: FieldSpec[]): Record<string, unknown> {
+export function schemaFields(specs: FieldSpec[]): SchemaDefinition {
   const definition: Record<string, unknown> = {};
   for (const spec of specs) definition[spec.key] = fieldType(spec);
-  return definition;
+  return definition as SchemaDefinition;
 }
 
 function fieldType(spec: FieldSpec): unknown {

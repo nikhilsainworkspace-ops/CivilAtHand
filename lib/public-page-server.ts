@@ -40,6 +40,6 @@ export async function loadLivePage(slug: string, key = ""): Promise<LivePage | n
 /** Other published, public pages the owner chose to show in the public navigation. */
 export async function publicNavigation(): Promise<{ slug: string; title: string }[]> {
   await dbConnect();
-  const pages = await PublicPage.find({ status: "published", visibility: "public", showInNav: true }).select("slug title expiresAt status").sort({ navOrder: 1, title: 1 }).limit(12).lean() as { slug: string; title: string; status: string; expiresAt?: Date | null }[];
+  const pages = await PublicPage.find({ status: "published", visibility: "public", showInNav: true }).select("slug title expiresAt status").sort({ navOrder: 1, title: 1 }).limit(12).lean() as unknown as { slug: string; title: string; status: string; expiresAt?: Date | null }[];
   return pages.filter((page) => pageIsLive(page)).map((page) => ({ slug: page.slug, title: page.title }));
 }

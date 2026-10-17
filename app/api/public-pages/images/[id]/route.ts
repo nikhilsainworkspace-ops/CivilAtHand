@@ -17,7 +17,7 @@ export async function GET(_request: Request, context: Context) {
   const { id } = await context.params;
   if (!mongoose.isValidObjectId(id)) return new Response("Not found", { status: 404, headers });
   await dbConnect();
-  const image = await PageImage.findById(id).select("+data").lean() as { mimeType: string; size: number; data: Buffer } | null;
+  const image = await PageImage.findById(id).select("+data").lean() as unknown as { mimeType: string; size: number; data: Buffer } | null;
   if (!image) return new Response("Not found", { status: 404, headers });
   return new Response(new Uint8Array(image.data), { headers: { ...headers, "Content-Type": image.mimeType, "Content-Length": String(image.size) } });
 }
