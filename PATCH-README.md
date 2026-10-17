@@ -1,13 +1,13 @@
-# Civil At Hand — PATCH v4.0.0
+# Civil At Hand — FINAL v4.1.0
 
-Incremental patch for CivilAtHand-main (v3.0.0 → v4.0.0). Contains only new and changed
+Incremental patch for CivilAtHand-main (v3.0.0 → v4.1.0, includes the Vercel type fix and the redesigned public form and public pages). Contains only new and changed
 files at their original paths. Nothing is deleted. No environment files, secrets or data.
 
 ## Apply
 1. Back up first: commit or copy your current project, and take a backup from
    Security → Backups (or rely on your MongoDB Atlas backup).
 2. Unzip at the project root so files overwrite in place:
-   `unzip -o CivilAtHand-PATCH-v4.0.0.zip -x PATCH-README.md`
+   `unzip -o CivilAtHand-FINAL-v4.1.0.zip -x PATCH-README.md`
 3. `npm install` (no new dependencies; refreshes the lock to version 4.0.0 metadata)
 4. `npm run check`  (typecheck + unit tests + integration tests)
 5. `npm run lint` and `npm run build` — these could NOT be run where the patch was made; run them before deploying.
@@ -29,7 +29,7 @@ with the new stages (Estimation, Awarded, Planning, Defects, Closed) should be m
 one of the original seven stages before rolling back, because v3 validation rejects them on edit.
 
 ## Files
-Modified (22):
+Modified (23, incl. components/public-intake-form.tsx, app/p/[slug]/page.tsx is new):
   AGENTS.md
   README.md
   UPDATES.md
