@@ -14,7 +14,7 @@ export const brand = {
   siteUrl: cleanSiteUrl(process.env.NEXT_PUBLIC_SITE_URL),
   color: /^#[0-9a-fA-F]{6}$/.test(process.env.NEXT_PUBLIC_BRAND_COLOR || "")
     ? process.env.NEXT_PUBLIC_BRAND_COLOR!
-    : "#1769e8",
+    : "#1f3a5c",
   logoUrl: process.env.NEXT_PUBLIC_BRAND_LOGO_URL?.trim() || "/civil-at-hand-logo.png",
   faviconUrl: process.env.NEXT_PUBLIC_FAVICON_URL?.trim() || "/favicon.ico",
 };

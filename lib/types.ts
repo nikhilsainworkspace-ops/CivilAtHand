@@ -64,6 +64,8 @@ export type ProjectDoc = {
   followUpAt: Date | null;
   source: string;
   notes: string;
+  siteAddress?: string; contractRef?: string; managerName?: string; scope?: string; budget?: number | null; progressPercent?: number | null;
+  actualStartDate?: Date | null; actualEndDate?: Date | null; milestones?: { title: string; dueDate: Date | null; done: boolean; doneAt: Date | null; weight?: number }[];
   createdAt: Date;
   updatedAt: Date;
 };
@@ -95,6 +97,8 @@ export type ProjectRecord = {
   city: string; state: string; projectType: string; status: string; estimatedValue: number | null;
   billedAmount?: number | null; receivedAmount?: number | null;
   startDate?: string | null; endDate?: string | null; followUpAt?: string | null; source: string; notes: string;
+  siteAddress?: string; contractRef?: string; managerName?: string; scope?: string; budget?: number | null; progressPercent?: number | null;
+  actualStartDate?: string | null; actualEndDate?: string | null; milestones?: { _id?: string; title: string; dueDate?: string | null; done: boolean; doneAt?: string | null; weight?: number }[];
   createdAt: string; updatedAt: string;
 };
 

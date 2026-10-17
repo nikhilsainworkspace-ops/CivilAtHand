@@ -45,6 +45,6 @@ export function collectFollowUps(
 ): FollowUpItem[] {
   const items: FollowUpItem[] = [];
   for (const c of contacts) if (c.followUpAt && c.status !== "closed") items.push({ kind: "contact", id: c._id, title: c.name, subtitle: c.organization || "", date: c.followUpAt, phone: c.phone });
-  for (const p of projects) if (p.followUpAt && p.status !== "completed" && p.status !== "lost") items.push({ kind: "project", id: p._id, title: p.title, subtitle: p.clientName || "", date: p.followUpAt });
+  for (const p of projects) if (p.followUpAt && !["completed", "closed", "lost"].includes(p.status || "")) items.push({ kind: "project", id: p._id, title: p.title, subtitle: p.clientName || "", date: p.followUpAt });
   return items;
 }

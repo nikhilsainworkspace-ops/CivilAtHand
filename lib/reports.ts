@@ -1,4 +1,4 @@
-import { openLeadStatuses } from "@/lib/projects";
+import { finishedStatuses, openLeadStatuses, projectStatusValues } from "@/lib/projects";
 import { dateKey } from "@/lib/followups";
 
 type C = { category: string; status: string; state?: string; city?: string; source?: string; createdAt?: string; followUpAt?: string | null };
@@ -25,7 +25,7 @@ export function buildReport(contacts: C[], projects: P[], links: L[], now: Date 
     const month = months.find((m) => c.createdAt && dateKey(new Date(c.createdAt)).startsWith(m.key));
     if (month) month.count += 1;
   }
-  const projectRows = ["lead", "quoted", "negotiation", "ongoing", "completed", "on-hold", "lost"].map((status) => {
+  const projectRows = projectStatusValues.map((status) => {
     const list = projects.filter((p) => p.status === status);
     return { status, count: list.length, value: list.reduce((sum, p) => sum + (p.estimatedValue || 0), 0) };
   });
@@ -38,13 +38,13 @@ export function buildReport(contacts: C[], projects: P[], links: L[], now: Date 
     bySource: tally(contacts.map((c) => c.source || "manual")),
     addedPerMonth: months,
     followUpsOverdueContacts: contacts.filter((c) => c.followUpAt && c.followUpAt.slice(0, 10) < today).length,
-    followUpsOverdueProjects: projects.filter((p) => p.followUpAt && p.followUpAt.slice(0, 10) < today && !["completed", "lost"].includes(p.status)).length,
+    followUpsOverdueProjects: projects.filter((p) => p.followUpAt && p.followUpAt.slice(0, 10) < today && !finishedStatuses.includes(p.status)).length,
     projectRows,
     totalProjects: projects.length,
     openLeads: open.length,
     pipelineValue: open.reduce((sum, p) => sum + (p.estimatedValue || 0), 0),
     ongoingValue: projects.filter((p) => p.status === "ongoing").reduce((sum, p) => sum + (p.estimatedValue || 0), 0),
-    wonProjects: projects.filter((p) => p.status === "ongoing" || p.status === "completed").length,
+    wonProjects: projects.filter((p) => ["awarded", "planning", "ongoing", "completed", "defects", "closed"].includes(p.status)).length,
     lostProjects: projects.filter((p) => p.status === "lost").length,
     billedTotal: projects.reduce((sum, p) => sum + (p.billedAmount || 0), 0),
     receivedTotal: projects.reduce((sum, p) => sum + (p.receivedAmount || 0), 0),
