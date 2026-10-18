@@ -20,6 +20,8 @@ import { MaterialRequest } from "@/models/MaterialRequest";
 import { PageImage } from "@/models/PageImage";
 import { ProjectDocument } from "@/models/ProjectDocument";
 import { PublicPage } from "@/models/PublicPage";
+import { CustomForm } from "@/models/CustomForm";
+import { CustomFormResponse } from "@/models/CustomFormResponse";
 import { PurchaseOrder } from "@/models/PurchaseOrder";
 import { SiteReport } from "@/models/SiteReport";
 import { StockMovement } from "@/models/StockMovement";
@@ -32,6 +34,7 @@ export const v4BackupCollections = {
   siteReports: SiteReport, estimates: Estimate, materials: Material, stockMovements: StockMovement, materialRequests: MaterialRequest,
   purchaseOrders: PurchaseOrder, workers: Worker, attendance: Attendance, workerTransactions: WorkerTxn, invoices: Invoice, expenses: Expense,
   documents: ProjectDocument, tenders: Tender, publicPages: PublicPage,
+  customForms: CustomForm, customFormResponses: CustomFormResponse,
 } as const;
 
 type BinaryRow = { _id: unknown; data: Buffer; [key: string]: unknown };
@@ -52,17 +55,21 @@ export async function createWorkspaceBackup() {
     _id: String(asset._id), noteId: String(asset.noteId), filename: asset.filename, mimeType: asset.mimeType, size: asset.size,
     dataBase64: Buffer.from(asset.data).toString("base64"), createdAt: asset.createdAt, updatedAt: asset.updatedAt,
   }));
-  const v4Entries = await Promise.all(Object.entries(v4BackupCollections).map(async ([key, model]) => [key, await (model as unknown as { find: (filter: object) => { lean: () => Promise<unknown[]> } }).find({}).lean()] as const));
+  const v4Entries = await Promise.all(Object.entries(v4BackupCollections).map(async ([key, model]) => {
+    const source = model as unknown as { find: (filter: object, projection?: object) => { lean: () => Promise<unknown[]> } };
+    const rows = key === "customForms" ? await source.find({}, { token: 0 }).lean() : await source.find({}).lean();
+    return [key, rows] as const;
+  }));
   const v4 = Object.fromEntries(v4Entries) as Record<keyof typeof v4BackupCollections, unknown[]>;
   const [documentFiles, pageImages, settingsRows, counters] = await Promise.all([
     DocumentFile.find().select("+data").lean(), PageImage.find().select("+data").lean(), BusinessSetting.find().lean(), Counter.find().lean(),
   ]);
   return {
-    app: "civil-at-hand", version: 5, exportedAt: new Date().toISOString(), contacts, projects, rates,
+    app: "civil-at-hand", version: 6, exportedAt: new Date().toISOString(), contacts, projects, rates,
     formLinks: links, dataRooms: rooms, tasks, privateNotes, noteAssets, adminPreferences,
     ...v4,
     documentFiles: encodeBinary(documentFiles), pageImages: encodeBinary(pageImages), businessSettings: settingsRows, counters,
-    restoreNotes: "Merge restore does not restore public form tokens, private share tokens, unlisted public-page keys or shared-database row snapshots. Create new share links where needed after restoring.",
+    restoreNotes: "Merge restore does not restore existing public form tokens, custom form tokens, private share tokens, unlisted public-page keys or shared-database row snapshots. Restored custom forms are inactive and receive new share tokens; reactivate and reshare only after reviewing them.",
   };
 }
 

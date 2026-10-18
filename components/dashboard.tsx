@@ -26,6 +26,7 @@ import OverviewPanel from "@/components/overview-panel";
 import ProcurementPanel from "@/components/procurement-panel";
 import ProjectWorkspace from "@/components/project-workspace";
 import PublicPagesPanel from "@/components/public-pages-panel";
+import CustomFormsPanel from "@/components/custom-forms-panel";
 import SettingsPanel from "@/components/settings-panel";
 import SiteReportsPanel from "@/components/site-reports-panel";
 import TendersPanel from "@/components/tenders-panel";
@@ -37,7 +38,7 @@ import { finishedStatuses } from "@/lib/projects";
 type Session = { authenticated: boolean; configured: boolean; appName: string; twoFactor?: boolean };
 type Toast = { type: "success" | "error" | "info"; message: string };
 type Tab = "overview" | "followups" | "tasks" | "notes" | "contacts" | "team" | "projects" | "rates" | "rooms" | "reports" | "links" | "security" | "settings"
-  | "project" | "site" | "estimates" | "procurement" | "workforce" | "finance" | "documents" | "tenders" | "pages";
+  | "project" | "site" | "estimates" | "procurement" | "workforce" | "finance" | "documents" | "tenders" | "pages" | "customForms";
 type Focus = { kind: string; id: string; filter?: string; seq: number };
 type ServerHit = { kind: string; id: string; title: string; subtitle: string };
 /** Navigation, grouped the way the business works. Every earlier panel is still here. */
@@ -51,7 +52,7 @@ const navGroups: { id: string; label: string; items: [Tab, string, string][] }[]
   { id: "money", label: "Finance", items: [["finance", "Invoices, bills & expenses", "wallet"]] },
   { id: "docs", label: "Documents", items: [["documents", "Documents & approvals", "folder"]] },
   { id: "insight", label: "Reports", items: [["reports", "Reports", "chart"]] },
-  { id: "public", label: "Public pages & forms", items: [["links", "Public form links", "links"], ["pages", "Public pages", "globe"], ["rooms", "Shared databases", "share"]] },
+  { id: "public", label: "Public pages & forms", items: [["links", "Public form links", "links"], ["customForms", "Custom forms", "clipboard"], ["pages", "Public pages", "globe"], ["rooms", "Shared databases", "share"]] },
   { id: "admin", label: "Administration", items: [["settings", "Settings", "settings"], ["security", "Security & backups", "lock"]] },
 ];
 type GlobalSearchResult =
@@ -744,6 +745,7 @@ export default function Dashboard() {
     ["Expense", "receipt", () => navigate("finance", { kind: "new-expense", id: "" })],
     ["Task", "calendar", () => setTab("tasks")],
     ["Form link", "links", () => { setTab("links"); setLinkModal(true); }],
+    ["Custom form", "clipboard", () => setTab("customForms")],
   ];
   const focusKey = focus ? `${focus.kind}-${focus.id}-${focus.seq}` : "none";
   const allResultsCount = globalSearchResults.length + serverHits.length;
@@ -854,6 +856,8 @@ export default function Dashboard() {
         {mergeOpen ? <MergeModal contacts={contacts} onClose={() => setMergeOpen(false)} onDone={() => loadData(false)} notify={notify} /> : null}
         {tab === "security" ? <SecurityPanel twoFactor={Boolean(session.twoFactor)} autoLockMinutes={autoLock} onAutoLock={(minutes) => { void saveAutoLockPreference(minutes); }} notify={notify} /> : null}
         {tab === "reports" ? <><ReportsPanel contacts={contacts} projects={projects} links={links} rooms={rooms} duplicateCount={duplicateIds.size} /><BusinessReports /></> : null}
+
+        {tab === "customForms" ? <CustomFormsPanel /> : null}
 
         {tab === "links" ? <div className="links-view"><div className="link-howto"><div className="howto-badge"><Icon name="links" /></div><div><h2>Collect details without giving dashboard access</h2><p>Make a separate form for each kind of contact. Share the link on WhatsApp, email or anywhere else. People can submit without a password; only you can view the saved records.</p></div><div className="howto-steps"><span><b>1</b> Create link</span><span><b>2</b> Share it</span><span><b>3</b> Review entries</span></div></div>
           <div className="links-section-heading"><div><h2>Your share links</h2><p>Pause a link any time. Paused or expired links stop accepting submissions.</p></div><span className="neutral-count">{links.length} total</span></div>

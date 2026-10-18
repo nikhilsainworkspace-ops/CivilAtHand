@@ -37,9 +37,17 @@ export async function POST(request: Request, context: Context) {
   if (!validToken(token)) return unavailable();
   try {
     const length = Number(request.headers.get("content-length") || 0);
-    if (length > 256_000) return NextResponse.json({ error: "This submission is too large." }, { status: 413 });
-    const body = await request.json() as Record<string, unknown>;
-    if (!body || typeof body !== "object" || Array.isArray(body)) return NextResponse.json({ error: "Send valid answers for this form." }, { status: 400 });
+    if (length > 256_000) return NextResponse.json({ error: "This submission is too large." }, { status: 413, headers: { "Cache-Control": "no-store" } });
+    let body: Record<string, unknown>;
+    try {
+      const raw = await request.text();
+      if (new TextEncoder().encode(raw).byteLength > 256_000) return NextResponse.json({ error: "This submission is too large." }, { status: 413, headers: { "Cache-Control": "no-store" } });
+      const parsed: unknown = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return NextResponse.json({ error: "Send valid answers for this form." }, { status: 400, headers: { "Cache-Control": "no-store" } });
+      body = parsed as Record<string, unknown>;
+    } catch {
+      return NextResponse.json({ error: "Send valid JSON answers for this form." }, { status: 400, headers: { "Cache-Control": "no-store" } });
+    }
     if (typeof body.website === "string" && body.website.trim()) return NextResponse.json({ ok: true }, { status: 201, headers: { "Cache-Control": "no-store" } });
     if (await tooManyRequests(request, "custom-public-form", 15, 3600)) return NextResponse.json({ error: "Too many submissions from this device. Please try again later." }, { status: 429, headers: { "Cache-Control": "no-store" } });
     await dbConnect();
