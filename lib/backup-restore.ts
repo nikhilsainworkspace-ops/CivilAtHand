@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { randomBytes } from "node:crypto";
 import { InputError } from "@/lib/errors";
 import { normalizePrivateNoteInput } from "@/lib/private-notes";
 import { dbConnect } from "@/lib/db";
@@ -24,6 +25,8 @@ import { MaterialRequest } from "@/models/MaterialRequest";
 import { PageImage } from "@/models/PageImage";
 import { ProjectDocument } from "@/models/ProjectDocument";
 import { PublicPage } from "@/models/PublicPage";
+import { CustomForm } from "@/models/CustomForm";
+import { CustomFormResponse } from "@/models/CustomFormResponse";
 import { PurchaseOrder } from "@/models/PurchaseOrder";
 import { SiteReport } from "@/models/SiteReport";
 import { StockMovement } from "@/models/StockMovement";
@@ -64,6 +67,9 @@ function v4Collections(): CollectionSpec[] {
     { key: "tenders", label: "tenders", Model: M(Tender), max: 10000, fields: keys(tenderDef) },
     // Restored pages always come back unpublished, so nothing becomes public without the owner publishing it again.
     { key: "publicPages", label: "public pages", Model: M(PublicPage), max: 1000, fields: ["slug", "title", "template", "summary", "visibility", "expiresAt", "seoTitle", "seoDescription", "allowIndexing", "showInNav", "navOrder", "coverImageId", "blocks", "createdAt", "updatedAt"] },
+    // Public tokens are deliberately excluded from backups; restore new forms paused with fresh tokens.
+    { key: "customForms", label: "custom forms", Model: M(CustomForm), max: 500, fields: ["title", "description", "active", "expiresAt", "submissions", "fields", "createdAt", "updatedAt"] },
+    { key: "customFormResponses", label: "custom form responses", Model: M(CustomFormResponse), max: 50000, fields: ["formId", "formTitle", "fields", "answers", "submittedAt", "createdAt", "updatedAt"] },
   ];
 }
 
@@ -100,7 +106,7 @@ function validImageBytes(data: Buffer, mimeType: string): boolean {
 }
 
 export async function validateWorkspaceBackup(backup: unknown): Promise<ValidatedWorkspaceBackup> {
-  if (!objectRecord(backup) || backup.app !== "civil-at-hand" || ![3, 4, 5].includes(Number(backup.version))) throw new InputError("Choose a valid Civil At Hand JSON backup (version 3, 4 or 5).");
+  if (!objectRecord(backup) || backup.app !== "civil-at-hand" || ![3, 4, 5, 6].includes(Number(backup.version))) throw new InputError("Choose a valid Civil At Hand JSON backup (version 3, 4, 5 or 6).");
   const collections: ValidatedWorkspaceBackup["collections"] = {};
   const counts: Record<string, number> = {};
   const invalid: string[] = [];
@@ -114,6 +120,10 @@ export async function validateWorkspaceBackup(backup: unknown): Promise<Validate
       const item = raw[index];
       if (!objectRecord(item) || typeof item._id !== "string" || !OBJECT_ID.test(item._id)) { invalid.push(`${spec.label} #${index + 1}: missing or invalid record ID`); continue; }
       const fields = projectFields(item, spec.fields);
+      if (spec.key === "customForms") {
+        fields.token = randomBytes(24).toString("hex");
+        fields.active = false;
+      }
       if (spec.key === "privateNotes") {
         try { Object.assign(fields, normalizePrivateNoteInput(fields)); } catch (error) { invalid.push(`private notes #${index + 1}: ${error instanceof Error ? error.message : "invalid note"}`); continue; }
       } else if (spec.key === "tasks" && (typeof fields.title !== "string" || !String(fields.title).trim())) { invalid.push(`tasks #${index + 1}: missing title`); continue; }
