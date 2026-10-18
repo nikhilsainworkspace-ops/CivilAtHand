@@ -97,7 +97,7 @@ export function normalizeCustomFormAnswers(fields: CustomFormField[], value: unk
     if (!answer) continue;
     if (field.type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(answer)) throw new InputError("Enter a valid email address for: " + field.label + ".");
     if (field.type === "number" && (!Number.isFinite(Number(answer)) || !/^-?\d+(?:\.\d+)?$/.test(answer))) throw new InputError("Enter a valid number for: " + field.label + ".");
-    if (field.type === "date" && (!/^\d{4}-\d{2}-\d{2}$/.test(answer) || Number.isNaN(Date.parse(answer + "T00:00:00Z")))) throw new InputError("Enter a valid date for: " + field.label + ".");
+    if (field.type === "date" && (!/^\d{4}-\d{2}-\d{2}$/.test(answer) || Number.isNaN(Date.parse(answer + "T00:00:00Z")) || new Date(answer + "T00:00:00Z").toISOString().slice(0, 10) !== answer)) throw new InputError("Enter a valid date for: " + field.label + ".");
     if ((field.type === "select" || field.type === "radio") && !field.options.includes(answer)) throw new InputError("Choose an available option for: " + field.label + ".");
     answers[field.key] = answer;
   }
