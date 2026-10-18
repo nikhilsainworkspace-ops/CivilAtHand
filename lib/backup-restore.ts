@@ -238,7 +238,7 @@ export async function applyWorkspaceBackup(checked: ValidatedWorkspaceBackup): P
 }
 
 export function workspaceBackupWarnings(checked: ValidatedWorkspaceBackup) {
-  const warnings = ["Restore is merge-only: it updates or adds records by their original ID and does not delete records absent from the backup.", "Public form tokens, private share tokens, and shared database row snapshots are deliberately not restored. Recreate any links you need to keep sharing.", "Public pages are restored as unpublished drafts. Review and publish them again when ready."];
+  const warnings = ["Restore is merge-only: it updates or adds records by their original ID and does not delete records absent from the backup.", "Public form tokens, custom form tokens, private share tokens, and shared database row snapshots are deliberately not restored. Custom forms restore inactive with fresh links; review, reactivate and reshare any forms you need.", "Public pages are restored as unpublished drafts. Review and publish them again when ready."];
   if (checked.invalid.length) warnings.push(`${checked.invalid.length} record(s) failed validation. Fix the source backup before restoring.`);
   return warnings;
 }
