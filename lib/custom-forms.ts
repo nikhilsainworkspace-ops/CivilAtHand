@@ -82,9 +82,10 @@ export function normalizeCustomFormAnswers(fields: CustomFormField[], value: unk
     }
     if (field.type === "multi-select") {
       if (raw !== undefined && raw !== null && !Array.isArray(raw)) throw new InputError("Choose valid options for: " + field.label + ".");
-      const chosen = Array.isArray(raw)
-        ? Array.from(new Set(raw.filter((item): item is string => typeof item === "string" && field.options.includes(item))).slice(0, 50))
+      const validChoices = Array.isArray(raw)
+        ? raw.filter((item: unknown): item is string => typeof item === "string" && field.options.includes(item))
         : [];
+      const chosen: string[] = Array.from(new Set<string>(validChoices)).slice(0, 50);
       if (field.required && !chosen.length) throw new InputError("Please complete the required question: " + field.label + ".");
       answers[field.key] = chosen;
       continue;

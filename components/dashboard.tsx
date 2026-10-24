@@ -714,6 +714,7 @@ export default function Dashboard() {
     reports: { title: "Reports", subtitle: "Network, pipeline and business figures. Use your browser’s print to save a PDF.", group: "Reports" },
     links: { title: "Public form links", subtitle: "Share a form link and collect structured details without giving dashboard access.", group: "Public pages & forms" },
     pages: { title: "Public pages", subtitle: "Optional showcase and enquiry pages that you publish yourself.", group: "Public pages & forms" },
+    customForms: { title: "Custom forms", subtitle: "Build shareable forms, review submissions and export responses.", group: "Public pages & forms" },
     rooms: { title: "Shared databases", subtitle: "Share selected data with clients through private links that expire.", group: "Public pages & forms" },
     settings: { title: "Settings", subtitle: "Business profile, document numbering, lists and alerts.", group: "Administration" },
     security: { title: "Security & backups", subtitle: "2-step verification, signed-in devices, activity log, backups and restore.", group: "Administration" },
